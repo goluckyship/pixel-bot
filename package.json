@@ -1,0 +1,16 @@
+{
+  "name": "pixel-bot",
+  "version": "1.0.0",
+  "description": "Pixel Bot - a Discord bot with games, moderation and utility commands",
+  "private": true,
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "discord.js": "^14.27.0"
+  }
+}
