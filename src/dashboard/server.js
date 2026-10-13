@@ -28,7 +28,23 @@ function settingsFromEnv() {
     return { error: `DASHBOARD_URL "${base}" isn't a valid address.` };
   }
   const port = Number(process.env.SERVER_PORT || process.env.PORT || url.port || 3000);
-  return { base, secret, port, secure: url.protocol === 'https:' };
+  // Extra addresses that also reach the dashboard (like a free pixelbot.wisp.uno
+  // address). Each needs its own "/callback" redirect in the Developer Portal.
+  const aliases = String(process.env.DASHBOARD_ALIASES ?? '').split(/[\s,]+/).map((a) => a.trim().replace(/\/+$/, '')).filter((a) => /^https?:\/\/[^/\s]+$/i.test(a));
+  return { base, secret, port, secure: url.protocol === 'https:', aliases };
+}
+
+/** The address this visitor used (the main one, or one of the aliases), so logins come back to it. */
+function siteFor(req, config) {
+  const host = String(req.headers['x-forwarded-host'] ?? req.headers.host ?? '').split(',')[0].trim().toLowerCase();
+  for (const base of [config.base, ...(config.aliases ?? [])]) {
+    try {
+      if (new URL(base).host.toLowerCase() === host) return { base, secure: base.startsWith('https:') };
+    } catch {
+      // ignore a malformed alias
+    }
+  }
+  return { base: config.base, secure: config.secure };
 }
 
 /** Can this person change this server's settings? */
@@ -94,7 +110,8 @@ function createHandler(client, config) {
 
   return async function handle(req, res) {
     try {
-      const url = new URL(req.url, config.base);
+      const site = siteFor(req, config);
+      const url = new URL(req.url, site.base);
       const session = auth.getSession(req);
       const user = session?.user ? { ...session.user, isOwner: owner.isOwner(client, session.user.id) } : null;
 
@@ -102,10 +119,10 @@ function createHandler(client, config) {
         const state = crypto.randomBytes(16).toString('base64url');
         const params = new URLSearchParams({
           client_id: client.application.id, response_type: 'code', scope: 'identify', prompt: 'none', // skip Discord's "Authorize" screen after the first time
-          redirect_uri: `${config.base}/callback`, state,
+          redirect_uri: `${site.base}/callback`, state,
         });
         return redirect(res, `https://discord.com/oauth2/authorize?${params}`, {
-          'Set-Cookie': auth.cookie('pb_state', auth.sign(state), { maxAge: 600, secure: config.secure }),
+          'Set-Cookie': auth.cookie('pb_state', auth.sign(state), { maxAge: 600, secure: site.secure }),
         });
       }
 
@@ -117,25 +134,25 @@ function createHandler(client, config) {
           const e = pages.errorPage(null, 'That login link expired or was already used. Please try again.');
           return send(res, e.status, e.html);
         }
-        const profile = await auth.fetchDiscordUser({ code, clientId: client.application.id, clientSecret: config.secret, redirectUri: `${config.base}/callback` });
+        const profile = await auth.fetchDiscordUser({ code, clientId: client.application.id, clientSecret: config.secret, redirectUri: `${site.base}/callback` });
         return redirect(res, '/', {
           'Set-Cookie': [
-            auth.cookie('pb_session', auth.createSession(profile), { maxAge: auth.SESSION_DAYS * 86400, secure: config.secure }),
-            auth.cookie('pb_state', '', { maxAge: 0, secure: config.secure }),
+            auth.cookie('pb_session', auth.createSession(profile), { maxAge: auth.SESSION_DAYS * 86400, secure: site.secure }),
+            auth.cookie('pb_state', '', { maxAge: 0, secure: site.secure }),
           ],
         });
       }
 
       if (url.pathname === '/logout') {
         auth.destroySession(req);
-        return redirect(res, '/', { 'Set-Cookie': auth.cookie('pb_session', '', { maxAge: 0, secure: config.secure }) });
+        return redirect(res, '/', { 'Set-Cookie': auth.cookie('pb_session', '', { maxAge: 0, secure: site.secure }) });
       }
 
       // The desktop shortcut opens /start: straight in if you're logged in, otherwise to Discord's login.
       if (req.method === 'GET' && url.pathname === '/start') return redirect(res, user ? '/' : '/login');
       if (req.method === 'GET' && url.pathname === '/shortcut.url') {
         res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Disposition': 'attachment; filename="Pixel Bot.url"', 'Cache-Control': 'no-store' });
-        return res.end(`[InternetShortcut]\r\nURL=${config.base}/start\r\n`);
+        return res.end(`[InternetShortcut]\r\nURL=${(config.aliases?.[0] ?? site.base)}/start\r\n`);
       }
 
       if (!user) {
@@ -233,8 +250,8 @@ function start(client) {
   }
   const server = http.createServer(createHandler(client, config));
   server.on('error', (error) => console.warn(`Dashboard could not start on port ${config.port}: ${error.message}`));
-  server.listen(config.port, '0.0.0.0', () => console.log(`Dashboard is running at ${config.base}`));
+  server.listen(config.port, '0.0.0.0', () => console.log(`Dashboard is running at ${[config.base, ...config.aliases].join(' and ')}`));
   return server;
 }
 
-module.exports = { start, createHandler, settingsFromEnv, parseForm };
+module.exports = { start, createHandler, settingsFromEnv, siteFor, parseForm };
