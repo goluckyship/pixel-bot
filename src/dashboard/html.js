@@ -317,6 +317,7 @@ const ICONS = {
   home: '<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h5v-6h4v6h5V9.5"/>',
   code: '<path d="m8 7-5 5 5 5"/><path d="m16 7 5 5-5 5"/><path d="m14 4-4 16"/>',
   key: '<circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 8.7-8.7"/><path d="m16 7 2.5 2.5"/><path d="m18.5 4.5 2 2"/>',
+  game: '<rect x="2" y="6" width="20" height="12" rx="4"/><path d="M7 10v4"/><path d="M5 12h4"/><circle cx="15.5" cy="11" r="1"/><circle cx="18" cy="13.5" r="1"/>',
   plus: '<rect x="3" y="3" width="18" height="18" rx="5"/><path d="M12 8v8"/><path d="M8 12h8"/>',
   out: '<path d="M14 4h5a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-5"/><path d="M10 16l-4-4 4-4"/><path d="M6 12h10"/>',
 };
@@ -327,6 +328,7 @@ function menu(user) {
   const item = (href, ic, label, caption, extra = '') => `<a class="mi${extra}" href="${href}"><span class="mic">${icon(ic)}</span><span><b>${label}</b><small>${caption}</small></span></a>`;
   const items = [
     item('/?all=1', 'home', 'Servers', 'Pick a server and change its settings'),
+    item('/arcade', 'game', 'Arcade', 'Play Pixel Arcade games with friends'),
     item('/invite', 'plus', 'Add to a server', 'Invite Pixel Bot to another server'),
     user.isOwner ? item('/source', 'code', 'Code', 'Read and search Pixel Bot\'s code') : '',
     item('/account', 'key', 'Backup login', 'One-time links to log in without Discord'),

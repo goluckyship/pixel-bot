@@ -68,10 +68,12 @@ async function exchange(code, clientId, clientSecret) {
 
 const validRoom = (id) => /^[\w.:-]{1,120}$/.test(String(id ?? ''));
 
-function page(clientId) {
+const attr = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+function page(clientId, web = null) {
+  const extra = web ? ` data-mode="web" data-room="${attr(web.room)}" data-code="${attr(web.code)}" data-token="${attr(web.token)}"` : '';
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
-<title>Pixel Arcade</title><link rel="stylesheet" href="/activity/arcade.css"></head>
-<body data-client="${String(clientId).replace(/\D/g, '')}"><div id="app"><div class="boot"><div class="bot big"></div><p>Loading the arcade…</p></div></div>
+<title>Pixel Arcade</title><link rel="icon" href="/activity/bot.svg"><link rel="stylesheet" href="/activity/arcade.css"></head>
+<body data-client="${String(clientId).replace(/\D/g, '')}"${extra}><div id="app"><div class="boot"><div class="bot big"></div><p>Loading the arcade…</p></div></div>
 <script src="/activity/discord.js"></script><script src="/activity/arcade.js"></script></body></html>`;
 }
 
@@ -138,4 +140,22 @@ async function handle(req, res, url, ctx) {
   return true;
 }
 
-module.exports = { handle, CSP, tokens, issue };
+// ---------- playing in a normal browser tab (from the dashboard) ----------
+const WEB_CSP = CSP.replace(/frame-ancestors [^;]+/, "frame-ancestors 'none'");
+const cleanCode = (c) => String(c ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
+const newCode = () => Array.from(crypto.randomBytes(5), (b) => 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[b % 31]).join('');
+
+/** The arcade page for a logged-in dashboard user. code: a room code, or MAIN. */
+function webPage(res, clientId, user, code) {
+  const room = `web-${code}`;
+  const token = issue({ id: user.id, username: user.username });
+  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Content-Security-Policy': WEB_CSP, 'X-Frame-Options': 'DENY', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin' });
+  res.end(page(clientId, { room, code, token }));
+}
+
+/** Who's in which web room right now (for the rooms page). */
+function webRooms() {
+  return [...arcade.rooms.values()].filter((r) => r.id.startsWith('web-') && r.players.size).map((r) => ({ code: r.id.slice(4), players: [...r.players.values()].map((p) => p.name), game: r.game && !r.game.finished ? arcade.GAMES[r.game.type]?.name : null }));
+}
+
+module.exports = { handle, CSP, tokens, issue, webPage, webRooms, cleanCode, newCode };

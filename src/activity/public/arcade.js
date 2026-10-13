@@ -2,8 +2,10 @@
 (function () {
   const app = document.getElementById('app');
   const clientId = document.body.dataset.client;
-  const link = new window.DiscordLink(clientId);
-  let token = null;
+  const web = document.body.dataset.mode === 'web'; // played in a normal browser tab from the dashboard
+  const link = web ? null : new window.DiscordLink(clientId);
+  const roomId = web ? document.body.dataset.room : link.instanceId;
+  let token = web ? document.body.dataset.token : null;
   let state = null;
   let offset = 0; // server clock minus ours
   let picking = null; // a 2-player game waiting for an opponent choice
@@ -40,7 +42,7 @@
     if (busy) return;
     busy = true;
     try {
-      const next = await api('act', { method: 'POST', body: JSON.stringify({ room: link.instanceId, ...body }) });
+      const next = await api('act', { method: 'POST', body: JSON.stringify({ room: roomId, ...body }) });
       take(next);
     } catch (e) {
       toast(e.message);
@@ -59,10 +61,10 @@
   async function poll() {
     for (;;) {
       try {
-        const next = await api(`state?room=${encodeURIComponent(link.instanceId)}&since=${state ? state.version : 0}`);
+        const next = await api(`state?room=${encodeURIComponent(roomId)}&since=${state ? state.version : 0}`);
         take(next);
       } catch (e) {
-        if (e.status === 401) return message('Logged out', 'Close and reopen the activity to keep playing.', false);
+        if (e.status === 401) return message('Logged out', web ? 'Refresh the page to keep playing.' : 'Close and reopen the activity to keep playing.', web);
         await new Promise((r) => setTimeout(r, 1500));
       }
     }
@@ -70,8 +72,9 @@
 
   // ---------- screens ----------
   function header(sub) {
-    return `<div class="top"><div class="brand"><div class="bot"></div><div><h1>Pixel Arcade</h1><div class="sub" style="text-align:left;margin:0">${sub}</div></div></div>
-${state.game ? '<button class="btn ghost" data-act="lobby">⟵ Lobby</button>' : ''}</div>`;
+    const code = web ? `<span class="tag" style="margin:0 0 0 6px">Room ${esc(document.body.dataset.code)}</span>` : '';
+    const back = state.game ? '<button class="btn ghost" data-act="lobby">⟵ Lobby</button>' : web ? '<a class="btn ghost" href="/arcade" style="text-decoration:none">⟵ Rooms</a>' : '';
+    return `<div class="top"><div class="brand"><div class="bot"></div><div><h1>Pixel Arcade${code}</h1><div class="sub" style="text-align:left;margin:0">${sub}</div></div></div>${back}</div>`;
   }
 
   function lobby() {
@@ -87,7 +90,7 @@ ${state.game ? '<button class="btn ghost" data-act="lobby">⟵ Lobby</button>' :
     return `${header(`${state.players.length} player${state.players.length === 1 ? '' : 's'} here`)}
 <div class="card"><h2>Players</h2><div class="players">${players}</div></div>
 <div class="games">${cards}</div>
-<p class="foot">Anyone in the activity can start a game. Invite friends with the activity's invite button.</p>`;
+<p class="foot">${web ? `Friends join from the dashboard: ☰ menu → Arcade → enter room code <b>${esc(document.body.dataset.code)}</b>.` : "Anyone in the activity can start a game. Invite friends with the activity's invite button."}</p>`;
   }
 
   function finishedButtons() {
@@ -198,6 +201,7 @@ ${state.game ? '<button class="btn ghost" data-act="lobby">⟵ Lobby</button>' :
 
   // ---------- start ----------
   async function start() {
+    if (web) { app.innerHTML = ''; return poll(); }
     if (!link.inDiscord) return message('Open me in Discord', 'Pixel Arcade is a Discord Activity. Start it from the 🚀 Activities button in a voice channel or chat.', false);
     const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 12000));
     try {

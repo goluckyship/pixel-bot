@@ -226,6 +226,15 @@ function createHandler(client, config) {
         return redirect(res, '/');
       }
 
+      // Pixel Arcade in a normal tab: /arcade (pick a room), /arcade/play?room=CODE, /arcade/new
+      if (req.method === 'GET' && url.pathname === '/arcade') return send(res, 200, pages.arcadeRooms(user, activity.webRooms()));
+      if (req.method === 'GET' && url.pathname === '/arcade/new') return redirect(res, `/arcade/play?room=${activity.newCode()}`);
+      if (req.method === 'GET' && url.pathname === '/arcade/play') {
+        const code = activity.cleanCode(url.searchParams.get('room')) || 'MAIN';
+        if (code !== url.searchParams.get('room')) return redirect(res, `/arcade/play?room=${code}`);
+        return activity.webPage(res, client.application.id, user, code);
+      }
+
       // Your account: make or cancel one-time backup login links.
       if (url.pathname === '/account' || url.pathname === '/account/link' || url.pathname === '/account/revoke') {
         let hasAccess = owner.isOwner(client, user.id);
