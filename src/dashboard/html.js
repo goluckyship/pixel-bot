@@ -51,7 +51,7 @@ textarea{min-height:100px;resize:vertical}
 .toggle input:focus-visible{outline:3px solid var(--brand);outline-offset:2px}
 
 button,.button{display:inline-flex;align-items:center;gap:8px;margin-top:16px;padding:11px 22px;border:0;border-radius:999px;background:var(--brand);color:var(--brand-text);font:600 15px var(--head);cursor:pointer;text-decoration:none;box-shadow:0 4px 0 color-mix(in srgb,var(--brand) 60%,#000);transition:transform .1s,box-shadow .1s}
-table.src{width:100%;border-collapse:collapse;font:13px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}table.src td{padding:0 10px;vertical-align:top;white-space:pre-wrap;word-break:break-word}table.src td.n{width:1%;text-align:right;color:var(--muted);user-select:none;white-space:nowrap;border-right:2px solid var(--line)}table.src tr:target{background:color-mix(in srgb,var(--brand) 22%,transparent)}table.src .c{color:var(--muted);font-style:italic}.srcbox{overflow-x:auto;border:2px solid var(--line);border-radius:calc(var(--r) * .7);background:var(--card);padding:10px 0}.files a{display:flex;justify-content:space-between;gap:10px;padding:6px 10px;border-radius:10px;text-decoration:none;color:inherit;font:14px ui-monospace,Menlo,Consolas,monospace}.files a:hover{background:color-mix(in srgb,var(--brand) 12%,transparent)}.files .dir{margin:14px 0 4px;font-weight:700}.crumbs{font:600 15px ui-monospace,Menlo,Consolas,monospace;word-break:break-all}
+table.src{width:100%;border-collapse:collapse;font:13px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}table.src td{padding:0 10px;vertical-align:top;white-space:pre-wrap;word-break:break-word}table.src td.n{width:1%;text-align:right;color:var(--muted);user-select:none;white-space:nowrap;border-right:2px solid var(--line)}table.src tr:target{background:color-mix(in srgb,var(--brand) 22%,transparent)}table.src .c{color:var(--sy-c);font-style:italic}table.src .kw,table.src .o,table.src .p{color:var(--sy-kw)}table.src .s{color:var(--sy-s)}table.src .n{color:var(--sy-n)}table.src .f{color:var(--sy-f)}table.src .t{color:var(--sy-t)}table.src .r{color:var(--sy-r)}table.src .k{color:var(--sy-k)}table.src .h{color:var(--sy-n);font-weight:700}table.src .b{font-weight:700}table.src td.line{color:var(--sy-text)}table.src td,table.src tr{border:0!important}table.src td.n a{color:inherit;text-decoration:none}.srcbox{background:var(--sy-code)!important}.srcbox{overflow-x:auto;border:2px solid var(--line);border-radius:calc(var(--r) * .7);background:var(--card);padding:10px 0}.files a{display:flex;justify-content:space-between;gap:10px;padding:6px 10px;border-radius:10px;text-decoration:none;color:inherit;font:14px ui-monospace,Menlo,Consolas,monospace}.files a:hover{background:color-mix(in srgb,var(--brand) 12%,transparent)}.files .dir{margin:14px 0 4px;font-weight:700}.crumbs{font:600 15px ui-monospace,Menlo,Consolas,monospace;word-break:break-all}
 a.linky{display:inline-block;margin-top:14px;color:var(--brand);font-weight:700}.code{font:600 clamp(40px,12vw,64px) var(--head);letter-spacing:.12em;margin:18px 0 6px;padding:14px 26px;border-radius:22px;background:color-mix(in srgb,var(--brand) 12%,transparent);display:inline-block}.steps{text-align:left;display:inline-block;margin:10px auto 0;line-height:1.8}
 button:hover,.button:hover{transform:translateY(-1px);box-shadow:0 5px 0 color-mix(in srgb,var(--brand) 60%,#000)}
 button:active,.button:active{transform:translateY(3px);box-shadow:0 1px 0 color-mix(in srgb,var(--brand) 60%,#000)}
@@ -201,6 +201,12 @@ function themeCss(theme = {}) {
 }
 
 /** Ready-made looks. Each has a light and a dark version (dark is used at night / in dark mode). */
+// GitHub's code colours, for the Code page.
+const SYNTAX = {
+  light: ';--sy-kw:#cf222e;--sy-s:#0a3069;--sy-c:#6e7781;--sy-n:#0550ae;--sy-f:#8250df;--sy-t:#953800;--sy-r:#116329;--sy-k:#0550ae;--sy-code:#f6f8fa;--sy-text:#1f2328',
+  dark: ';--sy-kw:#ff7b72;--sy-s:#a5d6ff;--sy-c:#8b949e;--sy-n:#79c0ff;--sy-f:#d2a8ff;--sy-t:#ffa657;--sy-r:#7ee787;--sy-k:#79c0ff;--sy-code:#0d1117;--sy-text:#e6edf3',
+};
+
 const PRESETS = {
   lavender: {
     name: 'Cozy lavender',
@@ -246,11 +252,13 @@ function currentTheme() {
 function page({ title, user, body, head = '' }) {
   const theme = currentTheme();
   const preset = PRESETS[theme.preset] ?? PRESETS.lavender;
+  const light = preset.light + SYNTAX.light;
+  const dark = preset.dark + SYNTAX.dark;
   const mode = theme.mode === 'dark'
-    ? `:root{${preset.dark}}`
+    ? `:root{${dark}}`
     : theme.mode === 'light'
-      ? `:root{${preset.light}}@media (prefers-color-scheme:dark){:root{${preset.light}}}`
-      : `:root{${preset.light}}@media (prefers-color-scheme:dark){:root{${preset.dark}}}`;
+      ? `:root{${light}}@media (prefers-color-scheme:dark){:root{${light}}}`
+      : `:root{${light}}@media (prefers-color-scheme:dark){:root{${dark}}}`;
   const name = theme.title || 'Pixel Bot dashboard';
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(title)} · ${esc(name)}</title>

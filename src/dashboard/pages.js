@@ -127,15 +127,8 @@ ${searchBox}${body}</div>`,
 
 /** One file, with line numbers. Click a number to get a link to that line. */
 function sourceFile(user, rel, text) {
-  const lines = text.split('\n');
-  let inBlock = false;
-  const rows = lines.map((line, i) => {
-    const t = line.trim();
-    const isComment = inBlock || t.startsWith('//') || t.startsWith('/*') || t.startsWith('*') || t.startsWith('#') || /^rem\b/i.test(t);
-    if (t.startsWith('/*') && !t.includes('*/')) inBlock = true;
-    else if (inBlock && t.includes('*/')) inBlock = false;
-    return `<tr id="L${i + 1}"><td class="n"><a href="#L${i + 1}">${i + 1}</a></td><td${isComment ? ' class="c"' : ''}>${esc(line) || ' '}</td></tr>`;
-  }).join('');
+  const lines = require('./highlight').highlight(text, rel);
+  const rows = lines.map((html, i) => `<tr id="L${i + 1}"><td class="n"><a href="#L${i + 1}">${i + 1}</a></td><td class="line">${html || ' '}</td></tr>`).join('');
   const parts = rel.split('/');
   return page({
     title: parts.at(-1),
