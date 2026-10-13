@@ -39,7 +39,21 @@ function landing() {
     title: 'Log in',
     body: `<div class="hero">${pixelHeart(120, 'beat')}<h1>Pixel Bot</h1>
 <p class="sub">Your cosy control room for The Pixel Bassment. Log in with Discord and everything's one click away.</p>
-<a class="button" href="/login">Log in with Discord</a></div>`,
+<a class="button" href="/login">Log in with Discord</a><br><a class="linky" href="/code">Discord blocked on this computer? Log in with a code</a></div>`,
+  });
+}
+
+/** The "log in with a code" screen: type /login on your phone, this page logs itself in. */
+function codeLogin(code, minutesLeft) {
+  return page({
+    title: 'Log in with a code',
+    head: '<meta http-equiv="refresh" content="3">',
+    body: `<div class="hero">${pixelHeart(72, 'beat')}<h1>Log in with a code</h1>
+<p class="sub">For computers where Discord is blocked. Use Discord on your phone (or any device) instead.</p>
+<div class="code">${esc(code)}</div>
+<ol class="steps"><li>Open Discord on your phone</li><li>In your server (or a DM with Pixel Bot) type <b>/login</b></li><li>Enter <b>${esc(code)}</b> as the code</li></ol>
+<p class="muted">This page logs you in by itself a few seconds after. The code works for ${minutesLeft} more minute${minutesLeft === 1 ? '' : 's'}.</p>
+<a class="linky" href="/code?new=1">Get a new code</a> · <a class="linky" href="/">Back</a></div>`,
   });
 }
 
@@ -484,4 +498,4 @@ ${fold({
   return page({ title: panel.name, user, body });
 }
 
-module.exports = { landing, serverList, guildPage, panelPage, errorPage, roleOptions, channelOptions };
+module.exports = { landing, codeLogin, serverList, guildPage, panelPage, errorPage, roleOptions, channelOptions };

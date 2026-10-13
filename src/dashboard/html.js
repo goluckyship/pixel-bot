@@ -51,6 +51,7 @@ textarea{min-height:100px;resize:vertical}
 .toggle input:focus-visible{outline:3px solid var(--brand);outline-offset:2px}
 
 button,.button{display:inline-flex;align-items:center;gap:8px;margin-top:16px;padding:11px 22px;border:0;border-radius:999px;background:var(--brand);color:var(--brand-text);font:600 15px var(--head);cursor:pointer;text-decoration:none;box-shadow:0 4px 0 color-mix(in srgb,var(--brand) 60%,#000);transition:transform .1s,box-shadow .1s}
+a.linky{display:inline-block;margin-top:14px;color:var(--brand);font-weight:700}.code{font:600 clamp(40px,12vw,64px) var(--head);letter-spacing:.12em;margin:18px 0 6px;padding:14px 26px;border-radius:22px;background:color-mix(in srgb,var(--brand) 12%,transparent);display:inline-block}.steps{text-align:left;display:inline-block;margin:10px auto 0;line-height:1.8}
 button:hover,.button:hover{transform:translateY(-1px);box-shadow:0 5px 0 color-mix(in srgb,var(--brand) 60%,#000)}
 button:active,.button:active{transform:translateY(3px);box-shadow:0 1px 0 color-mix(in srgb,var(--brand) 60%,#000)}
 button.secondary{background:var(--card);color:var(--brand);box-shadow:0 4px 0 var(--line);border:2px solid var(--brand)}
@@ -241,7 +242,7 @@ function currentTheme() {
   }
 }
 
-function page({ title, user, body }) {
+function page({ title, user, body, head = '' }) {
   const theme = currentTheme();
   const preset = PRESETS[theme.preset] ?? PRESETS.lavender;
   const mode = theme.mode === 'dark'
@@ -253,7 +254,7 @@ function page({ title, user, body }) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(title)} · ${esc(name)}</title>
 <link rel="icon" href="data:image/svg+xml,${encodeURIComponent(pixelHeart(64).replace('<svg class="heart "', '<svg xmlns="http://www.w3.org/2000/svg"').replace(/class="fill"/g, 'fill="#ff8fbf"').replace(/class="edge"/g, 'fill="#8b6cf6"').replace(/class="shine"/g, 'fill="#ffffff"'))}">
-<meta name="theme-color" content="#8b6cf6">
+<meta name="theme-color" content="#8b6cf6">${head}
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito:wght@400;600;700&display=swap">
 <style>${CSS}${mode}${themeCss(theme)}</style></head><body>

@@ -9,6 +9,7 @@ const http = require('node:http');
 const crypto = require('node:crypto');
 const { PermissionFlagsBits } = require('discord.js');
 const auth = require('./auth');
+const codes = require('../lib/logincodes');
 const pages = require('./pages');
 const { apply, applyPanel } = require('./actions');
 const panels = require('../lib/panels');
@@ -141,6 +142,30 @@ function createHandler(client, config) {
             auth.cookie('pb_state', '', { maxAge: 0, secure: site.secure }),
           ],
         });
+      }
+
+      // Log in with a code (for computers where discord.com is blocked).
+      if (req.method === 'GET' && url.pathname === '/code') {
+        const secret = auth.unsign(auth.parseCookies(req.headers.cookie).pb_code);
+        let state = url.searchParams.has('new') ? null : codes.status(secret);
+        if (state?.user) {
+          const profile = codes.take(secret);
+          return redirect(res, '/', {
+            'Set-Cookie': [
+              auth.cookie('pb_session', auth.createSession(profile), { maxAge: auth.SESSION_DAYS * 86400, secure: site.secure }),
+              auth.cookie('pb_code', '', { maxAge: 0, secure: site.secure }),
+            ],
+          });
+        }
+        if (user) return redirect(res, '/');
+        const headers = {};
+        if (!state) {
+          const made = codes.create();
+          headers['Set-Cookie'] = auth.cookie('pb_code', auth.sign(made.secret), { maxAge: codes.LIFETIME / 1000, secure: site.secure });
+          state = { code: made.code, minutesLeft: codes.LIFETIME / 60_000 };
+        }
+        if (url.searchParams.has('new')) return redirect(res, '/code', headers);
+        return send(res, 200, pages.codeLogin(state.code, state.minutesLeft), headers);
       }
 
       if (url.pathname === '/logout') {
