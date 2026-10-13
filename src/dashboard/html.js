@@ -104,7 +104,7 @@ td .small{display:inline-block}a.small{font-size:14px;font-weight:700}
 .colorpick .toggle{margin:0}
 .qrow{border:2px dashed var(--line);border-radius:calc(var(--r) * .7);padding:6px 16px 12px;margin:14px 0;background:var(--card)}.qrow .head{font:600 15px var(--head);color:var(--brand);margin-top:8px}
 .note{font-size:14px;color:var(--warn);font-weight:600}
-.hero{text-align:center;padding:48px 8px 24px}.hero .heart{margin:0 auto 18px;width:120px;height:auto;filter:drop-shadow(0 8px 0 var(--line))}
+.hero{text-align:center;padding:48px 8px 24px}.bot{display:block;image-rendering:pixelated;flex:none}.hero .bot{margin:0 auto 18px;filter:drop-shadow(0 8px 0 var(--line))}@media (prefers-reduced-motion:no-preference){.hero .bot.beat{animation:beat .9s cubic-bezier(.3,1.6,.6,1) .25s 1 both,bob 3.2s ease-in-out 1.2s infinite}}@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}.hero .heart{margin:0 auto 18px;width:120px;height:auto;filter:drop-shadow(0 8px 0 var(--line))}
 .hero h1{font-size:40px}.hero .sub{max-width:34em;margin:0 auto 24px;font-size:17px}
 .empty{text-align:center;color:var(--muted);padding:12px 0;font-weight:600}
 @media (prefers-reduced-motion:no-preference){.beat{animation:beat .9s cubic-bezier(.3,1.6,.6,1) .25s 1 both}}
@@ -158,7 +158,7 @@ form.refresh{margin-left:auto;flex:none}form.refresh button{margin:0;padding:8px
 .bar small{position:absolute;bottom:-22px;font-size:11px;color:var(--muted);white-space:nowrap}
 @media (max-width:640px){.bar:nth-child(even) small{display:none}}
 .postbox{border-color:color-mix(in srgb,var(--pink) 50%,var(--line))}
-@media (max-width:640px){.foldbody{padding:16px}.welcomebar .heart{display:none}.welcomebar{flex-wrap:wrap}form.refresh{margin-left:0}}
+@media (max-width:640px){.foldbody{padding:16px}.welcomebar .heart,.welcomebar .bot{display:none}.welcomebar{flex-wrap:wrap}form.refresh{margin-left:0}}
 `;
 
 const FONTS = {
@@ -242,6 +242,47 @@ const PRESETS = {
 const DARK_VARS = '--bg:#211a2c;--card:#2d2440;--text:#f3e9ff;--muted:#b8a6cc;--line:#43375a;--brand:#b39dff;--brand-text:#221a2e;--pink:#ff9ec8;--ok:#5fd6a8;--warn:#f2b552;--bad:#ff7aa2;--field:#261f36;color-scheme:dark';
 const LIGHT_VARS = '--bg:#f5effc;--card:#fffbfe;--text:#3d2b52;--muted:#85739a;--line:#eadcf3;--brand:#8b6cf6;--brand-text:#fff;--pink:#ff8fbf;--ok:#2f9e78;--warn:#c27a12;--bad:#e0507a;--field:#fff;color-scheme:light';
 
+/** Pixel Bot's logo: a little pixel-art robot. Fixed colours so it looks the same everywhere. */
+const BOT_GRID = [
+  '.......PP.......',
+  '.......PP.......',
+  '.......OO.......',
+  '..OOOOOOOOOOOO..',
+  '.OLLBBBBBBBBBBO.',
+  '.OLSSSSSSSSSSBO.',
+  'OOBSWESSSSWESBOO',
+  'OOBSEESSSSEESBOO',
+  '.OBSSSSSSSSSSBO.',
+  '.OBSSESSSSESSBO.',
+  '.OBSSSEEEESSSBO.',
+  '.OBSSSSSSSSSSBO.',
+  '.OBPPBBBBBBPPBO.',
+  '..OOOOOOOOOOOO..',
+  '.....OBBBBO.....',
+  '....OOOOOOOO....',
+];
+const BOT_COLORS = { O: '#24364b', B: '#7db4ee', L: '#c9e2fb', S: '#1d2b3d', E: '#7ff0ff', P: '#ff8fbf', W: '#ffffff' };
+let botRects = null;
+function botBody() {
+  if (botRects) return botRects;
+  const out = [];
+  BOT_GRID.forEach((row, y) => {
+    let x = 0;
+    while (x < row.length) { // join runs of the same colour into one rectangle
+      const c = row[x];
+      let w = 1;
+      while (row[x + w] === c) w++;
+      if (BOT_COLORS[c]) out.push(`<rect x="${x}" y="${y}" width="${w}" height="1" fill="${BOT_COLORS[c]}"/>`);
+      x += w;
+    }
+  });
+  return (botRects = out.join(''));
+}
+function pixelBot(size = 30, extraClass = '') {
+  return `<svg class="bot ${extraClass}" width="${size}" height="${size}" viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true">${botBody()}</svg>`;
+}
+const botIcon = () => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" shape-rendering="crispEdges">${botBody()}</svg>`;
+
 /** Pixel Bot's little pixel-art heart. */
 function pixelHeart(size = 28, extraClass = '') {
   const rows = ['.##...##.', '#xx#.#xx#', '#xsx#xxx#', '#xxxxxxx#', '.#xxxxx#.', '..#xxx#..', '...#x#...', '....#....'];
@@ -298,12 +339,12 @@ function page({ title, user, body, head = '' }) {
   const name = theme.title || 'Pixel Bot dashboard';
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(title)} · ${esc(name)}</title>
-<link rel="icon" href="data:image/svg+xml,${encodeURIComponent(pixelHeart(64).replace('<svg class="heart "', '<svg xmlns="http://www.w3.org/2000/svg"').replace(/class="fill"/g, 'fill="#ff8fbf"').replace(/class="edge"/g, 'fill="#8b6cf6"').replace(/class="shine"/g, 'fill="#ffffff"'))}">
+<link rel="icon" href="data:image/svg+xml,${encodeURIComponent(botIcon())}">
 <meta name="theme-color" content="#8b6cf6">${head}
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito:wght@400;600;700&display=swap">
 <style>${CSS}${mode}${themeCss(theme)}</style></head><body>
-<header><a class="brand" href="/">${pixelHeart(28)}<b>${esc(name)}</b></a>${user ? menu(user) : ''}</header>
+<header><a class="brand" href="/">${pixelBot(32)}<b>${esc(name)}</b></a>${user ? menu(user) : ''}</header>
 <main>${body}</main></body></html>`;
 }
 
@@ -335,4 +376,4 @@ const hidden = (name, value) => `<input type="hidden" name="${esc(name)}" value=
 
 const toggle = (name, on, text) => `<label class="toggle"><input type="checkbox" name="${esc(name)}" value="1"${on ? ' checked' : ''}> ${esc(text)}</label>`;
 
-module.exports = { PRESETS, pixelHeart, esc, page, select, checks, toggle, input, textarea, hidden, colorInput, themeCss, textOn, mix, FONTS, CORNERS, MODES };
+module.exports = { PRESETS, pixelHeart, pixelBot, botIcon, BOT_GRID, BOT_COLORS, esc, page, select, checks, toggle, input, textarea, hidden, colorInput, themeCss, textOn, mix, FONTS, CORNERS, MODES };

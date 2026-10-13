@@ -1,6 +1,6 @@
 // The dashboard's pages.
 const { ChannelType } = require('discord.js');
-const { esc, page, select, checks, toggle, input, textarea, hidden, colorInput, pixelHeart, FONTS, CORNERS, MODES, PRESETS } = require('./html');
+const { esc, page, select, checks, toggle, input, textarea, hidden, colorInput, pixelHeart, pixelBot, FONTS, CORNERS, MODES, PRESETS } = require('./html');
 const questions = require('../lib/questions');
 const db = require('../lib/storage');
 const settings = require('../lib/settings');
@@ -37,7 +37,7 @@ const roleIds = (guild, list) => (list ?? []).map((entry) => findRole(guild, ent
 function landing() {
   return page({
     title: 'Log in',
-    body: `<div class="hero">${pixelHeart(120, 'beat')}<h1>Pixel Bot</h1>
+    body: `<div class="hero">${pixelBot(120, 'beat')}<h1>Pixel Bot</h1>
 <p class="sub">Your cosy control room for The Pixel Bassment. Log in with Discord and everything's one click away.</p>
 <a class="button" href="/login">Log in with Discord</a><br><a class="linky" href="/code">Discord blocked on this computer? Log in with a code</a></div>`,
   });
@@ -48,7 +48,7 @@ function codeLogin(code, minutesLeft) {
   return page({
     title: 'Log in with a code',
     head: '<meta http-equiv="refresh" content="3">',
-    body: `<div class="hero">${pixelHeart(72, 'beat')}<h1>Log in with a code</h1>
+    body: `<div class="hero">${pixelBot(80, 'beat')}<h1>Log in with a code</h1>
 <p class="sub">For computers where Discord is blocked. Use Discord on your phone (or any device) instead.</p>
 <div class="code">${esc(code)}</div>
 <ol class="steps"><li>Open Discord on your phone</li><li>In your server (or a DM with Pixel Bot) type <b>/login</b></li><li>Enter <b>${esc(code)}</b> as the code</li></ol>
@@ -61,7 +61,7 @@ function codeLogin(code, minutesLeft) {
 function linkLogin(token) {
   return page({
     title: 'Backup login',
-    body: `<div class="hero">${pixelHeart(72, 'beat')}<h1>Backup login</h1>
+    body: `<div class="hero">${pixelBot(80, 'beat')}<h1>Backup login</h1>
 <p class="sub">This one-time link logs you in to the Pixel Bot dashboard. It stops working once you use it.</p>
 <form method="post" action="/r/${esc(token)}"><button type="submit">Log me in</button></form></div>`,
   });
@@ -147,7 +147,7 @@ function serverList(user, guilds) {
 }
 
 function errorPage(user, message, status = 400) {
-  return { status, html: page({ title: 'Oops', user, body: `<div class="hero">${pixelHeart(72)}<h1>Oops</h1><p class="sub">${esc(message)}</p><a class="button" href="/">Back to the dashboard</a></div>` }) };
+  return { status, html: page({ title: 'Oops', user, body: `<div class="hero">${pixelBot(80)}<h1>Oops</h1><p class="sub">${esc(message)}</p><a class="button" href="/">Back to the dashboard</a></div>` }) };
 }
 
 /** A section that folds up into one tidy row showing what it's set to. */
@@ -315,7 +315,7 @@ function guildPage({ guild, user, csrf, flash, problems, editingCommand }) {
   const autoOn = Object.entries(automod.FEATURES).filter(([key]) => rules[key]).length;
 
   const body = `
-<div class="welcomebar">${pixelHeart(44, 'beat')}<div><h1>${esc(guild.name)}</h1><p class="sub">Tap a section to open it. Everything saves the moment you press Save.</p></div>${refreshButton(guild.id, csrf, `/g/${guild.id}`)}</div>
+<div class="welcomebar">${pixelBot(48, 'beat')}<div><h1>${esc(guild.name)}</h1><p class="sub">Tap a section to open it. Everything saves the moment you press Save.</p></div>${refreshButton(guild.id, csrf, `/g/${guild.id}`)}</div>
 ${flash && !flash.section ? flashBox(flash) : ''}
 ${problems.length ? `<div class="card problems"><h2>💡 A few things to check</h2><ul>${problems.map((p) => `<li>${esc(p.replace(/\*\*/g, '').replace(/<@&(\d+)>/g, (m, id) => guild.roles.cache.get(id)?.name ?? 'a role'))}</li>`).join('')}</ul></div>` : ''}
 
