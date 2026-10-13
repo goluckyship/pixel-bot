@@ -64,16 +64,14 @@ async function applyFeature(guild, member, sectionId, form) {
 async function refresh(guild, form) {
   // Only ever send people back to a dashboard page.
   const back = /^\/g\/\d+(\/panel\/\d+)?$/.test(String(form?.back ?? '')) ? form.back : undefined;
-  const results = await Promise.allSettled([
-    guild.channels.fetch?.(),
-    guild.roles.fetch?.(),
-    guild.emojis?.fetch?.(),
-    guild.members.fetch?.(),
-  ]);
-  const failed = results.filter((r) => r.status === 'rejected').length;
+  const parts = [['channels', () => guild.channels.fetch?.()], ['roles', () => guild.roles.fetch?.()], ['emojis', () => guild.emojis?.fetch?.()], ['members', () => guild.members.fetch?.()]];
+  const results = await Promise.allSettled(parts.map(([, run]) => run()));
+  const failedParts = parts.filter((_, i) => results[i].status === 'rejected').map(([name], i) => name);
+  results.forEach((r, i) => r.status === 'rejected' && console.warn(`Refresh: couldn't read ${parts[i][0]}: ${r.reason?.message ?? r.reason}`));
+  const failed = failedParts.length;
   const channels = guild.channels.cache.size;
   const roles = Math.max(0, guild.roles.cache.size - 1);
-  return { ok: failed === 0, text: `🔄 Refreshed from Discord: ${channels} channels, ${roles} roles, ${guild.memberCount} members.${failed ? ' (Some parts couldn\'t be read. Check Pixel Bot\'s permissions.)' : ''}`, redirect: back };
+  return { ok: failed === 0, text: `🔄 Refreshed from Discord: ${channels} channels, ${roles} roles, ${guild.memberCount} members.${failed ? ` (Couldn't read the ${failedParts.join(' and ')} list this time. ${failedParts.includes('members') ? 'Discord only lets bots reload members every so often, so try again in a minute.' : 'Check Pixel Bot\'s permissions.'})` : ''}`, redirect: back };
 }
 
 /** Everything about this server worth backing up (no logins or secrets). */
