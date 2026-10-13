@@ -359,14 +359,15 @@ function readPanelForm(guild, panel, form) {
       if (itemColor.error) return itemColor.error;
       const isNew = i >= panel.items.length;
       if (panel.type === 'applications') {
-        const touchedApp = base.label || base.description || form[`${p}reviewChannel`] || asList(form[`${p}reviewers`]).length || asList(form[`${p}acceptRoles`]).length;
+        const touchedApp = base.label || base.description || form[`${p}reviewCategory`] || asList(form[`${p}reviewers`]).length || asList(form[`${p}acceptRoles`]).length;
         if (isNew && !touchedApp) continue;
         const cooldown = Number(text(form[`${p}cooldownDays`], 10));
         items.push({
           ...base,
           label: base.label || 'Apply',
           open: Boolean(form[`${p}open`]),
-          reviewChannel: validChannel(guild, form[`${p}reviewChannel`]) ?? '',
+          reviewCategory: validChannel(guild, form[`${p}reviewCategory`], [ChannelType.GuildCategory]) ?? '',
+          applicantSees: Boolean(form[`${p}applicantSees`]),
           reviewers: validRoles(guild, form[`${p}reviewers`]),
           pingReviewers: Boolean(form[`${p}pingReviewers`]),
           acceptRoles: validRoles(guild, form[`${p}acceptRoles`]),

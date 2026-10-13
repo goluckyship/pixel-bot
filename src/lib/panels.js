@@ -58,7 +58,7 @@ function blankItem(type) {
         { text: 'Why do you want to join the team?', type: 'long', required: true, help: '', placeholder: '', choices: [] },
         { text: 'Any experience moderating?', type: 'long', required: false, help: '', placeholder: '', choices: [] },
       ],
-      reviewChannel: '', reviewers: [], pingReviewers: false, acceptRoles: [], removeRoles: [], cooldownDays: 7,
+      reviewCategory: '', applicantSees: false, reviewers: [], pingReviewers: false, acceptRoles: [], removeRoles: [], cooldownDays: 7,
       thanks: '📝 Thanks for applying! The team will review it and you\'ll get a DM with the result.',
       acceptMessage: '🎉 Good news! Your {application} in **{server}** was accepted.',
       declineMessage: 'Thanks for applying in **{server}**. Your {application} wasn\'t accepted this time.',
@@ -387,7 +387,8 @@ function problems(guild, panel) {
     if (!panel.items.length) out.push('Add at least one role.');
   } else if (panel.type === 'applications') {
     for (const item of panel.items) {
-      if (!guild.channels.cache.get(item.reviewChannel)) out.push(`"${item.label}" needs a review channel where staff will see applications.`);
+      if (!findCategory(guild, item.reviewCategory)) out.push(`"${item.label}" needs a category where Pixel Bot makes a private review channel for each application.`);
+      if (!(item.reviewers ?? []).length) out.push(`"${item.label}" has no reviewer roles, so only admins will see its applications.`);
       for (const id of item.acceptRoles ?? []) {
         const role = guild.roles.cache.get(id);
         if (role && !role.editable) out.push(`Pixel Bot's role must be above "${role.name}" to give it to accepted applicants.`);

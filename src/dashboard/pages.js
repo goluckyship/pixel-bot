@@ -408,8 +408,10 @@ function panelPage({ guild, user, csrf, flash, panel }) {
 <div><label>Button colour</label>${select(`${p}style`, styles, it.style, { blank: null })}</div></div>`;
     const appBody = () => `${look}
 ${toggle(`${p}open`, it.open !== false, 'Open for applications')}
-<div class="grid2"><div><label>Review channel (staff only)</label>${select(`${p}reviewChannel`, texts, it.reviewChannel ?? '', { blank: '— pick a channel —' })}</div>
-<div class="center">${toggle(`${p}pingReviewers`, it.pingReviewers, 'Ping reviewers for new applications')}</div></div>
+<label>Make a private review channel for each application in</label>${select(`${p}reviewCategory`, categories, findCategory(guild, it.reviewCategory)?.id ?? '', { blank: '— pick a category —' })}
+<p class="help small">Like tickets: every application gets its own channel there, only reviewers can see it, and it's renamed ✅ or ❌ once decided.</p>
+${toggle(`${p}pingReviewers`, it.pingReviewers, 'Ping reviewers for new applications')}
+${toggle(`${p}applicantSees`, it.applicantSees, 'Let the applicant see their channel too (for follow-up questions)')}
 <label>Who can review, vote and accept (none ticked = server managers)</label>${checks(`${p}reviewers`, roles, it.reviewers ?? [])}
 <label>Roles to give when accepted</label>${checks(`${p}acceptRoles`, roles, it.acceptRoles ?? [])}
 <h2 class="minor">Questions</h2><p class="help">Add as many as you like. Discord shows 5 at a time, so longer forms get a Continue button. Clear a question's text to remove it.</p>

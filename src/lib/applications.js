@@ -2,7 +2,8 @@
 // applications panel, it lands in a private review channel, staff vote
 // (👍 / 🛑 veto) and someone makes the call with ✅ Accept or ❌ Decline.
 // Accepting can hand out roles; the applicant gets a DM either way.
-const { ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits, MessageFlags } = require('discord.js');
+const { ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits, MessageFlags, ChannelType } = require('discord.js');
+const { findCategory } = require('./resolve');
 const db = require('./storage');
 const questions = require('./questions');
 const { embed, ephemeral, truncate, hexColor, fill, COLORS } = require('./ui');
@@ -32,7 +33,7 @@ function blocked(interaction, panel, index) {
   const item = panel.items[index];
   if (!item) return 'That application was removed.';
   if (item.open === false) return `${item.label || 'This application'} is closed right now. Check back later!`;
-  if (!interaction.guild.channels.cache.get(item.reviewChannel)) return 'This application isn\'t set up yet (it needs a review channel). Let a manager know.';
+  if (!findCategory(interaction.guild, item.reviewCategory)) return 'This application isn\'t set up yet (it needs a review category). Let a manager know.';
   const mine = Object.values(store(interaction.guildId).items).filter((a) => a.userId === interaction.user.id && a.panelId === panel.id && a.index === index);
   if (mine.some((a) => a.status === 'pending')) return 'You already have an application waiting for review. Hang tight!';
   const lastDecline = mine.filter((a) => a.status === 'declined').sort((a, b) => b.decidedAt - a.decidedAt)[0];
@@ -61,26 +62,52 @@ function reviewCards(guild, app, item) {
 
 function reviewButtons(app) {
   const done = app.status !== 'pending';
-  return [new ActionRowBuilder().addComponents(
+  const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId(`pb:app:accept:${app.id}`).setLabel('Accept').setEmoji('✅').setStyle(ButtonStyle.Success).setDisabled(done),
     new ButtonBuilder().setCustomId(`pb:app:decline:${app.id}`).setLabel('Decline').setEmoji('❌').setStyle(ButtonStyle.Danger).setDisabled(done),
     new ButtonBuilder().setCustomId(`pb:app:yes:${app.id}`).setLabel(`${app.yes.length}`).setEmoji('👍').setStyle(ButtonStyle.Secondary).setDisabled(done),
     new ButtonBuilder().setCustomId(`pb:app:veto:${app.id}`).setLabel(`Veto ${app.veto.length}`).setEmoji('🛑').setStyle(ButtonStyle.Secondary).setDisabled(done),
-  )];
+  );
+  if (done) row.addComponents(new ButtonBuilder().setCustomId(`pb:app:delete:${app.id}`).setLabel('Delete channel').setEmoji('🗑️').setStyle(ButtonStyle.Secondary));
+  return [row];
+}
+
+/** Lowercase, dash-separated text Discord accepts in a channel name. */
+const slug = (text) => String(text).toLowerCase().normalize('NFKD').replace(/[^\p{L}\p{N}_-]+/gu, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+
+/** Makes the private review channel for one application, under the category. */
+async function makeChannel(guild, item, app, user) {
+  const access = [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks];
+  const reviewers = (item.reviewers ?? []).map((id) => guild.roles.cache.get(id)).filter(Boolean);
+  const name = `${slug(item.label || 'application').slice(0, 40) || 'application'}-${slug(user.username).slice(0, 30) || app.id}`.slice(0, 100);
+  return guild.channels.create({
+    name,
+    type: ChannelType.GuildText,
+    parent: findCategory(guild, item.reviewCategory)?.id ?? null,
+    topic: `${app.kind} #${app.id} from ${user.tag ?? user.username}`.slice(0, 1024),
+    permissionOverwrites: [
+      { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
+      ...reviewers.map((role) => ({ id: role.id, allow: access })),
+      ...(item.applicantSees ? [{ id: user.id, allow: access }] : []),
+      { id: guild.members.me.id, allow: [...access, PermissionFlagsBits.ManageChannels] },
+    ],
+    reason: `${app.kind} from ${user.tag ?? user.username}`,
+  });
 }
 
 /** The form was filled in: post it for staff to review. */
 async function submit(interaction, panel, index, answers) {
   const { guild, user } = interaction;
   const item = panel.items[index];
-  const channel = guild.channels.cache.get(item.reviewChannel);
-  if (!channel) return interaction.editReply('This application isn\'t set up yet (it needs a review channel). Let a manager know.');
+  if (!findCategory(guild, item.reviewCategory)) return interaction.editReply('This application isn\'t set up yet (it needs a review category). Let a manager know.');
   const st = store(guild.id);
   const app = {
     id: ++st.counter, panelId: panel.id, index, kind: item.label || 'Application', userId: user.id, tag: user.tag ?? user.username,
     created: user.createdTimestamp ?? null, answers: answers.map(({ question, answer }) => ({ question, answer })), at: Date.now(),
-    status: 'pending', yes: [], veto: [], channelId: channel.id,
+    status: 'pending', yes: [], veto: [],
   };
+  const channel = await makeChannel(guild, item, app, user);
+  app.channelId = channel.id;
   const pings = item.pingReviewers ? (item.reviewers ?? []).map((id) => `<@&${id}>`) : [];
   const sent = await channel.send({
     content: pings.length ? pings.join(' ') : undefined,
@@ -142,6 +169,8 @@ async function decide(interaction, app, accepted, reason) {
   const dmed = member ? await member.send({ embeds: [dm] }).then(() => true).catch(() => false) : false;
 
   await refreshCard(guild, app);
+  const channel = guild.channels.cache.get(app.channelId);
+  if (channel?.setName && !channel.name.startsWith(accepted ? '✅' : '❌')) await channel.setName(`${accepted ? '✅' : '❌'}-${channel.name}`.slice(0, 100), `${app.kind} ${app.status}`).catch(() => {});
   await sendLog(guild, logEntry({ color: accepted ? COLORS.success : COLORS.danger, user: member?.user, description: `${accepted ? '✅' : '❌'} ${app.kind} #${app.id} from <@${app.userId}> was ${app.status} by ${interaction.user}${app.reason ? `\n**Reason:** ${app.reason}` : ''}` })).catch(() => {});
   const notes = [];
   if (!member) notes.push('they\'ve left the server');
@@ -172,6 +201,13 @@ async function onButton(interaction, action, id, choice) {
       { id: 'reason', label: action === 'accept' ? 'Note for them (optional)' : 'Reason (optional, they\'ll see it)', long: true, max: 1000 },
     ]));
   }
+  if (action === 'delete') {
+    if (app.status === 'pending') return interaction.reply(ephemeral('Accept or decline it first.'));
+    const channel = interaction.guild.channels.cache.get(app.channelId);
+    await interaction.reply(`🗑️ Deleting this channel in 5 seconds…`);
+    setTimeout(() => channel?.delete?.(`Application #${app.id} cleaned up by ${interaction.user.tag ?? interaction.user.id}`).catch(() => {}), 5000).unref?.();
+    return null;
+  }
   if (action === 'reason') {
     if (app.status !== 'pending') return interaction.reply(ephemeral('That application has already been decided.'));
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
@@ -180,4 +216,4 @@ async function onButton(interaction, action, id, choice) {
   return null;
 }
 
-module.exports = { store, blocked, submit, decide, onButton, canReview, reviewCards, STATUS };
+module.exports = { store, blocked, submit, decide, onButton, canReview, reviewCards, reviewButtons, STATUS, makeChannel };
