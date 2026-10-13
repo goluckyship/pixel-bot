@@ -161,6 +161,8 @@ To switch it on:
 
 5. Restart the bot. It prints `Dashboard is running at ...` when it's on.
 
+**Quick open:** go to your dashboard address followed by `/shortcut.url` (for example `http://node.wispbyte.com:1234/shortcut.url`) to download a desktop shortcut. Double-click it and you're straight in: you stay logged in for 60 days at a time, even when the bot restarts.
+
 ## How the project is organised
 
 ```

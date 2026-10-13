@@ -3,8 +3,37 @@
 const crypto = require('node:crypto');
 const db = require('../lib/storage');
 
-const SESSION_DAYS = 7;
-const sessions = new Map(); // id -> { user, csrf, expires }
+const SESSION_DAYS = 60; // and renewed every time you visit, so you stay logged in
+
+/**
+ * Logins are saved in data/db.json so a bot restart (or an update) doesn't log
+ * everyone out. Only a random ID is kept in the browser cookie.
+ */
+const sessions = {
+  all() {
+    db.data.dashboardSessions ??= {};
+    return db.data.dashboardSessions;
+  },
+  get(id) {
+    return Object.hasOwn(this.all(), id) ? this.all()[id] : undefined;
+  },
+  set(id, session) {
+    const all = this.all();
+    for (const [key, value] of Object.entries(all)) if (Date.now() > value.expires) delete all[key];
+    all[id] = session;
+    db.save();
+  },
+  delete(id) {
+    if (Object.hasOwn(this.all(), id)) {
+      delete this.all()[id];
+      db.save();
+    }
+  },
+  clear() {
+    db.data.dashboardSessions = {};
+    db.save();
+  },
+};
 
 function secret() {
   if (process.env.SESSION_SECRET) return process.env.SESSION_SECRET;
@@ -44,6 +73,12 @@ function getSession(req) {
   if (Date.now() > session.expires) {
     sessions.delete(id);
     return null;
+  }
+  // Renew it (at most once a day, so we're not writing the file on every click).
+  const renewed = Date.now() + SESSION_DAYS * 86_400_000;
+  if (renewed - session.expires > 86_400_000) {
+    session.expires = renewed;
+    db.save();
   }
   return session;
 }
@@ -86,4 +121,4 @@ async function fetchDiscordUser({ code, clientId, clientSecret, redirectUri }) {
   };
 }
 
-module.exports = { sessions, sign, unsign, parseCookies, cookie, getSession, createSession, destroySession, csrfOk, fetchDiscordUser };
+module.exports = { SESSION_DAYS, sessions, sign, unsign, parseCookies, cookie, getSession, createSession, destroySession, csrfOk, fetchDiscordUser };

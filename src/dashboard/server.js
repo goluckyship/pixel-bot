@@ -64,6 +64,9 @@ function parseForm(body) {
   return out;
 }
 
+/** Which fold-up section a save belongs to (so it opens again afterwards). */
+const sectionFor = (target) => (target.startsWith('schedule') ? 'schedule' : target.startsWith('command') ? 'commands' : target.startsWith('panel') ? 'panels' : target);
+
 const flashes = new Map(); // session csrf -> { ok, text } shown once
 
 function createHandler(client, config) {
@@ -74,7 +77,7 @@ function createHandler(client, config) {
       'X-Frame-Options': 'DENY',
       'X-Content-Type-Options': 'nosniff',
       'Referrer-Policy': 'same-origin',
-      'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; img-src https://cdn.discordapp.com; form-action 'self'; frame-ancestors 'none'",
+      'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https://cdn.discordapp.com data:; form-action 'self'; frame-ancestors 'none'",
       ...headers,
     });
     res.end(html);
@@ -93,7 +96,7 @@ function createHandler(client, config) {
       if (req.method === 'GET' && url.pathname === '/login') {
         const state = crypto.randomBytes(16).toString('base64url');
         const params = new URLSearchParams({
-          client_id: client.application.id, response_type: 'code', scope: 'identify',
+          client_id: client.application.id, response_type: 'code', scope: 'identify', prompt: 'none', // skip Discord's "Authorize" screen after the first time
           redirect_uri: `${config.base}/callback`, state,
         });
         return redirect(res, `https://discord.com/oauth2/authorize?${params}`, {
@@ -112,7 +115,7 @@ function createHandler(client, config) {
         const profile = await auth.fetchDiscordUser({ code, clientId: client.application.id, clientSecret: config.secret, redirectUri: `${config.base}/callback` });
         return redirect(res, '/', {
           'Set-Cookie': [
-            auth.cookie('pb_session', auth.createSession(profile), { maxAge: 7 * 86400, secure: config.secure }),
+            auth.cookie('pb_session', auth.createSession(profile), { maxAge: auth.SESSION_DAYS * 86400, secure: config.secure }),
             auth.cookie('pb_state', '', { maxAge: 0, secure: config.secure }),
           ],
         });
@@ -121,6 +124,13 @@ function createHandler(client, config) {
       if (url.pathname === '/logout') {
         auth.destroySession(req);
         return redirect(res, '/', { 'Set-Cookie': auth.cookie('pb_session', '', { maxAge: 0, secure: config.secure }) });
+      }
+
+      // The desktop shortcut opens /start: straight in if you're logged in, otherwise to Discord's login.
+      if (req.method === 'GET' && url.pathname === '/start') return redirect(res, user ? '/' : '/login');
+      if (req.method === 'GET' && url.pathname === '/shortcut.url') {
+        res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Disposition': 'attachment; filename="Pixel Bot.url"', 'Cache-Control': 'no-store' });
+        return res.end(`[InternetShortcut]\r\nURL=${config.base}/start\r\n`);
       }
 
       if (!user) {
@@ -135,6 +145,7 @@ function createHandler(client, config) {
             guilds.push({ id: guild.id, name: guild.name, memberCount: guild.memberCount, icon: guild.iconURL?.({ size: 64 }) ?? null });
           }
         }
+        if (guilds.length === 1) return redirect(res, `/g/${guilds[0].id}`);
         return send(res, 200, pages.serverList(user, guilds));
       }
 
@@ -164,9 +175,9 @@ function createHandler(client, config) {
             return send(res, e.status, e.html);
           }
           const result = panel ? await applyPanel(guild, member, panel, action, form) : await apply(guild, member, target, form);
-          flashes.set(session.csrf, result);
+          flashes.set(session.csrf, { ...result, section: panel ? null : sectionFor(target) });
           console.log(`Dashboard: ${user.username} changed "${panel ? `panel ${panel.id} ${action}` : target}" in ${guild.name} (${result.ok ? 'saved' : result.text})`);
-          const anchor = target.startsWith('schedule') ? 'schedule' : target.startsWith('command') ? 'commands' : target;
+          const anchor = sectionFor(target);
           return redirect(res, result.redirect ?? `/g/${guild.id}#${anchor}`);
         }
 
