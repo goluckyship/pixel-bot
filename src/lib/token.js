@@ -40,7 +40,8 @@ function readSavedToken() {
     // No .env file yet.
   }
   const token = cleanToken(process.env.DISCORD_TOKEN);
-  return token && token !== PLACEHOLDER ? token : null;
+  // Placeholders like "PASTE_BOT_TOKEN_HERE" mean "not filled in yet".
+  return token && token !== PLACEHOLDER && !/^paste/i.test(token) ? token : null;
 }
 
 /** Asks in the terminal until a valid-looking token is pasted. Returns null if the user quits. */
@@ -93,8 +94,21 @@ async function getToken() {
     console.log('\nStopped. Run "npm start" again when you have the token.');
     process.exit(0);
   }
-  fs.writeFileSync(ENV_FILE, `# Pixel Bot's secret token. Never share this file.\nDISCORD_TOKEN=${token}\n`);
-  tokenFileUsed = ENV_FILE;
+  // Keep any other settings already in the file; just set the token line.
+  const file = ENV_FILE_NAMES.map((name) => path.join(ROOT, name)).find((candidate) => fs.existsSync(candidate)) ?? ENV_FILE;
+  let text = '';
+  try {
+    text = fs.readFileSync(file, 'utf8').replace(/^﻿/, '');
+  } catch {
+    // New file.
+  }
+  if (/^\s*DISCORD_TOKEN\s*=.*$/m.test(text)) {
+    text = text.replace(/^\s*DISCORD_TOKEN\s*=.*$/m, `DISCORD_TOKEN=${token}`);
+  } else {
+    text = `${text ? '' : "# Pixel Bot's secret token. Never share this file.\n"}${text}${text && !text.endsWith('\n') ? '\n' : ''}DISCORD_TOKEN=${token}\n`;
+  }
+  fs.writeFileSync(file, text);
+  tokenFileUsed = file;
   console.log('\nSaved to the .env file. You won\'t be asked again.\n');
   return token;
 }

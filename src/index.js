@@ -47,7 +47,12 @@ function rejectToken() {
   try {
     const file = savedTokenFile();
     if (file) {
-      fs.unlinkSync(file);
+      // Only blank the token line, so other settings (dashboard etc.) survive.
+      const lines = fs.readFileSync(file, 'utf8').split(/\r?\n/);
+      const others = lines.filter((line) => !/^\s*DISCORD_TOKEN\s*=/.test(line));
+      const hasOtherSettings = others.some((line) => /^\s*[A-Za-z_][A-Za-z0-9_]*\s*=/.test(line));
+      if (hasOtherSettings) fs.writeFileSync(file, others.join('\n'));
+      else fs.unlinkSync(file);
       cleared = true;
     }
   } catch {
