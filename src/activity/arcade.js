@@ -4,12 +4,15 @@
 // from their own screen.
 const crypto = require('node:crypto');
 const QUESTIONS = require('./trivia');
+const ai = require('./ai');
+
+const BOT = 'pixelbot'; // Pixel Bot's player id when you play against it
 
 const GAMES = {
-  tictactoe: { name: 'Tic-Tac-Toe', emoji: '❌', players: '2 players', blurb: 'Three in a row wins.' },
-  connect4: { name: 'Connect Four', emoji: '🔴', players: '2 players', blurb: 'Drop discs, get four in a line.' },
-  trivia: { name: 'Trivia Party', emoji: '🧠', players: 'Everyone', blurb: '10 questions. Fast right answers score more.' },
-  reaction: { name: 'Reaction Race', emoji: '⚡', players: 'Everyone', blurb: 'Click the moment it turns green. Too early is a foul!' },
+  tictactoe: { name: 'Tic-Tac-Toe', icon: 'ttt', players: '2 players', blurb: 'Three in a row wins.' },
+  connect4: { name: 'Connect Four', icon: 'c4', players: '2 players', blurb: 'Drop discs, get four in a line.' },
+  trivia: { name: 'Trivia Party', icon: 'trivia', players: 'Everyone', blurb: '10 questions. Fast right answers score more.' },
+  reaction: { name: 'Reaction Race', icon: 'bolt', players: 'Everyone', blurb: 'Click the moment it turns green. Too early is a foul!' },
 };
 
 const rooms = new Map();
@@ -39,12 +42,19 @@ function join(r, user) {
     return p;
   }
   const used = new Set([...r.players.values()].map((x) => x.color));
+  used.add('#7db4ee');
   const color = COLORS.find((c) => !used.has(c)) ?? colorFor(user.id);
   const player = { id: user.id, name: user.username, color, score: 0, wins: 0, lastSeen: Date.now(), joined: Date.now() };
   r.players.set(user.id, player);
   bump(r);
   return player;
 }
+
+function addBot(r) {
+  if (!r.players.has(BOT)) r.players.set(BOT, { id: BOT, name: 'Pixel Bot', color: '#7db4ee', score: 0, wins: 0, lastSeen: Date.now(), joined: Date.now(), bot: true });
+}
+const removeBot = (r) => r.players.delete(BOT);
+const humans = (r) => [...r.players.keys()].filter((id) => id !== BOT);
 
 const COLORS = ['#7db4ee', '#ff8fbf', '#7ff0ff', '#ffd166', '#a78bfa', '#5fd6a8', '#ff9f6b', '#f472b6'];
 function colorFor(id) {
@@ -160,6 +170,7 @@ function triviaTick(r, g, now = Date.now()) {
       g.phase = 'question';
       g.phaseEnds = now + Q_TIME;
       g.answers = {};
+      g.botAt = null;
     }
     return true;
   }
@@ -199,6 +210,7 @@ function reactionTick(r, g, now = Date.now()) {
       g.results = {};
       g.fouls = {};
       g.roundWinner = null;
+      g.botMs = null;
     }
     return true;
   }
@@ -229,14 +241,50 @@ function reactionClick(r, g, userId) {
   return null;
 }
 
+// ---------- Pixel Bot's turns ----------
+function botTick(r, g, now) {
+  if (g.finished) return false;
+  const level = g.level ?? 'normal';
+  if (g.type === 'tictactoe' || g.type === 'connect4') {
+    const seat = g.seats.indexOf(BOT);
+    if (seat < 0 || g.turn !== seat) return false;
+    if (!g.botAt) { g.botAt = now + 550 + crypto.randomInt(500); return false; }
+    if (now < g.botAt) return false;
+    g.botAt = null;
+    const cell = g.type === 'tictactoe' ? ai.tttMove(g.board, seat, level) : ai.c4Move(g.board, seat, level);
+    return boardMove(r, g, BOT, cell) === null;
+  }
+  if (g.type === 'trivia' && g.phase === 'question' && g.answers[BOT] === undefined) {
+    if (!g.botAt) { g.botAt = now + ai.triviaDelay(level); return false; }
+    if (now < g.botAt && !humans(r).every((id) => g.answers[id] !== undefined)) return false;
+    const q = g.questions[g.index];
+    const wrong = [0, 1, 2, 3].filter((i) => i !== q.answer);
+    const choice = Math.random() < ai.triviaAccuracy(level) ? q.answer : wrong[crypto.randomInt(3)];
+    triviaAnswer(g, BOT, choice);
+    triviaTick(r, g, now);
+    return true;
+  }
+  if (g.type === 'reaction' && g.phase === 'go' && g.results[BOT] === undefined) {
+    g.botMs ??= ai.reactionMs(level);
+    if (now - g.goAt < g.botMs) return false;
+    g.results[BOT] = g.botMs;
+    const active = [...r.players.keys()].filter((id) => !g.fouls[id]);
+    if (active.every((id) => g.results[id] !== undefined)) endRound(r, g, now);
+    return true;
+  }
+  return false;
+}
+
 // ---------- shared ----------
 function tick(r) {
   const now = Date.now();
   let changed = false;
   for (const [id, p] of r.players) {
-    if (now - p.lastSeen > SEEN_TIMEOUT) { r.players.delete(id); changed = true; }
+    if (!p.bot && now - p.lastSeen > SEEN_TIMEOUT) { r.players.delete(id); changed = true; }
   }
+  if (r.players.has(BOT) && !humans(r).length) { removeBot(r); r.game = null; changed = true; }
   const g = r.game;
+  if (g && r.players.has(BOT) && botTick(r, g, now)) changed = true;
   if (g?.type === 'trivia' && triviaTick(r, g, now)) changed = true;
   if (g?.type === 'reaction' && reactionTick(r, g, now)) changed = true;
   if (changed) bump(r);
@@ -251,10 +299,13 @@ function act(r, user, body) {
     const type = String(body.game ?? '');
     if (!GAMES[type]) return 'Pick a game.';
     if (g && !g.finished) return 'A game is already going. Finish it or press "Back to lobby".';
+    const vsBot = body.with === BOT || body.bot === true || body.bot === 'true';
+    const level = ai.LEVELS[body.level] ? body.level : 'normal';
+    if (vsBot) addBot(r); else if (type === 'trivia' || type === 'reaction') removeBot(r);
     if (type === 'tictactoe' || type === 'connect4') {
-      const others = [...r.players.keys()].filter((id) => id !== user.id);
-      const rival = body.with && r.players.has(body.with) && body.with !== user.id ? body.with : others[0];
-      if (!rival) return 'You need someone to play with. Invite a friend into the activity!';
+      const others = humans(r).filter((id) => id !== user.id);
+      const rival = vsBot ? BOT : body.with && r.players.has(body.with) && body.with !== user.id ? body.with : others[0];
+      if (!rival) return 'You need someone to play with. Pick Pixel Bot, or invite a friend!';
       r.game = newBoardGame(type, crypto.randomInt(2) ? [user.id, rival] : [rival, user.id]);
     } else if (type === 'trivia') {
       r.game = newTrivia();
@@ -262,16 +313,19 @@ function act(r, user, body) {
       r.game = newReaction();
     }
     r.game.by = user.id;
+    r.game.level = level;
   } else if (action === 'lobby') {
     r.game = null;
   } else if (action === 'rematch') {
     if (!g?.finished) return 'Finish this game first.';
     if (g.type === 'tictactoe' || g.type === 'connect4') {
-      if (!g.seats.every((id) => r.players.has(id))) return 'Your opponent left. Start a new game from the lobby.';
+      if (!g.seats.every((id) => r.players.has(id) || id === BOT)) return 'Your opponent left. Start a new game from the lobby.';
       r.game = newBoardGame(g.type, [g.seats[1], g.seats[0]]);
     } else {
       r.game = g.type === 'trivia' ? newTrivia() : newReaction();
     }
+    r.game.level = g.level;
+    r.game.by = g.by;
   } else if (action === 'move') {
     if (!g || !['tictactoe', 'connect4'].includes(g.type)) return 'No board game is going.';
     error = boardMove(r, g, user.id, body.cell);
@@ -291,11 +345,11 @@ function act(r, user, body) {
 
 /** What one player's screen shows (hides answers until they're revealed). */
 function view(r, userId) {
-  const players = [...r.players.values()].sort((a, b) => a.joined - b.joined).map(({ id, name, color, score, wins }) => ({ id, name, color, score, wins }));
+  const players = [...r.players.values()].sort((a, b) => a.joined - b.joined).map(({ id, name, color, score, wins, bot }) => ({ id, name, color, score, wins, bot: Boolean(bot) }));
   const g = r.game;
   let game = null;
   if (g) {
-    game = { type: g.type, finished: g.finished, by: g.by, now: Date.now() };
+    game = { type: g.type, finished: g.finished, by: g.by, level: g.level, now: Date.now() };
     if (g.type === 'tictactoe' || g.type === 'connect4') Object.assign(game, { seats: g.seats, board: g.board, turn: g.turn, winner: g.winner, line: g.line, draw: g.draw, last: g.last });
     if (g.type === 'trivia') {
       const q = g.questions[g.index];
@@ -310,7 +364,7 @@ function view(r, userId) {
       Object.assign(game, { round: g.round, rounds: ROUNDS, phase: g.phase, results: g.results, fouls: g.fouls, roundWinner: g.roundWinner, wins: g.wins, phaseEnds: g.phaseEnds });
     }
   }
-  return { version: r.version, me: userId, players, game, games: GAMES };
+  return { version: r.version, me: userId, players, game, games: GAMES, levels: ai.LEVELS, bot: BOT };
 }
 
 /** Waits (up to `ms`) for the room to change after `since`, then returns. */
@@ -337,4 +391,4 @@ function startTicker() {
   ticker.unref?.();
 }
 
-module.exports = { GAMES, rooms, room, join, act, view, tick, waitFor, startTicker, c4Win, QUESTIONS, _internal: { triviaTick, reactionTick, Q_TIME, REVEAL_TIME } };
+module.exports = { BOT, GAMES, rooms, room, join, act, view, tick, waitFor, startTicker, c4Win, QUESTIONS, _internal: { triviaTick, reactionTick, Q_TIME, REVEAL_TIME } };

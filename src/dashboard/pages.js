@@ -139,16 +139,18 @@ function sourceFile(user, rel, text) {
   });
 }
 
+const pxIcon = (name) => `<img src="/activity/i-${name}.svg" alt="" style="height:16px;vertical-align:-2px;image-rendering:pixelated">`;
+
 /** Pick an arcade room: the main room, a new private room, or a room code. */
 function arcadeRooms(user, live) {
   const rows = live.length
-    ? live.map((r) => `<a href="/arcade/play?room=${esc(r.code)}"><span><b>${r.code === 'MAIN' ? '🌟 Main room' : `Room ${esc(r.code)}`}</b><br><span class="muted">${r.players.map(esc).join(', ')}${r.game ? ` · playing ${esc(r.game)}` : ''}</span></span><span class="muted">${r.players.length} 👤</span></a>`).join('')
+    ? live.map((r) => `<a href="/arcade/play?room=${esc(r.code)}"><span><b>${r.code === 'MAIN' ? `${pxIcon('star')} Main room` : `Room ${esc(r.code)}`}</b><br><span class="muted">${r.players.map(esc).join(', ')}${r.game ? ` · playing ${esc(r.game)}` : ''}</span></span><span class="muted">${r.players.length} ${pxIcon('person')}</span></a>`).join('')
     : '<p class="muted">Nobody is playing right now. Start a room and invite friends!</p>';
   return page({
     title: 'Arcade',
     user,
     body: `<div class="hero" style="padding-bottom:8px">${pixelBot(80, 'beat')}<h1>Pixel Arcade</h1><p class="sub">Tic-Tac-Toe, Connect Four, Trivia Party and Reaction Race. Play right here in your browser, no Discord needed.</p>
-<div class="row" style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap"><a class="button" href="/arcade/play?room=MAIN">🌟 Join the main room</a><a class="button secondary" href="/arcade/new">🔒 Make a private room</a></div></div>
+<div class="row" style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap"><a class="button" href="/arcade/play?room=MAIN">${pxIcon('star')} Join the main room</a><a class="button secondary" href="/arcade/new">${pxIcon('lock')} Make a private room</a></div></div>
 <div class="card"><h2>Join with a code</h2><form method="get" action="/arcade/play" style="display:flex;gap:10px;flex-wrap:wrap"><input name="room" placeholder="Room code, like K7P2Q" maxlength="8" style="flex:1 1 200px;text-transform:uppercase" required><button type="submit" style="margin-top:0">Join</button></form>
 <p class="help">Friends need to log in to this dashboard too (Discord login, a /login code, or a backup link). Anyone logged in can play, even without dashboard access to a server.</p></div>
 <div class="card"><h2>Rooms with people in them</h2><div class="servers">${rows}</div></div>`,
