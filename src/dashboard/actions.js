@@ -196,6 +196,7 @@ async function apply(guild, member, sectionId, form) {
           if (picked.error) return { ok: false, text: picked.error };
           if (picked.value) theme[key] = picked.value;
         }
+        if (require('./html').PRESETS[form.themePreset]) theme.preset = form.themePreset;
         if (MODES[form.themeMode]) theme.mode = form.themeMode;
         if (FONTS[form.themeFont]) theme.font = form.themeFont;
         if (CORNERS[form.themeCorners]) theme.corners = form.themeCorners;

@@ -1,6 +1,6 @@
 // The dashboard's pages.
 const { ChannelType } = require('discord.js');
-const { esc, page, select, checks, toggle, input, textarea, hidden, colorInput, pixelHeart, FONTS, CORNERS, MODES } = require('./html');
+const { esc, page, select, checks, toggle, input, textarea, hidden, colorInput, pixelHeart, FONTS, CORNERS, MODES, PRESETS } = require('./html');
 const questions = require('../lib/questions');
 const db = require('../lib/storage');
 const settings = require('../lib/settings');
@@ -349,10 +349,12 @@ function appearanceCard(guild, user, csrf, open, flash) {
 ${more(`<div class="grid2"><div><label>Online dot</label>${select('status', opts(appearance.STATUSES), b.status, { blank: null })}</div>
 <div><label>Colour of Pixel Bot's cards in Discord</label>${colorInput('color', color, { defaultText: 'Pixel purple' })}</div></div>`, 'Online dot and card colour')}
 ${more(`<p class="help">How this dashboard looks for everyone. Text colours adjust themselves so they're always readable.</p>
-<div class="grid2"><div><label>Accent colour</label>${colorInput('themeAccent', t.accent, { defaultText: 'Pixel purple' })}</div>
+<label>Theme</label>${select('themePreset', opts(PRESETS), t.preset ?? 'lavender', { blank: null })}
+<p class="help small">Pick a ready-made look. The colour pickers below (left on Default) are only for fine-tuning.</p>
+<div class="grid2"><div><label>Accent colour</label>${colorInput('themeAccent', t.accent, { defaultText: 'Theme default' })}</div>
 <div><label>Light or dark</label>${select('themeMode', opts(MODES), t.mode ?? 'auto', { blank: null })}</div>
-<div><label>Page background</label>${colorInput('themeBackground', t.background, { fallback: '#f5effc', defaultText: 'Cozy default' })}</div>
-<div><label>Card background</label>${colorInput('themeCard', t.card, { fallback: '#fffbfe', defaultText: 'Cozy default' })}</div>
+<div><label>Page background</label>${colorInput('themeBackground', t.background, { fallback: '#f5effc', defaultText: 'Theme default' })}</div>
+<div><label>Card background</label>${colorInput('themeCard', t.card, { fallback: '#fffbfe', defaultText: 'Theme default' })}</div>
 <div><label>Font</label>${select('themeFont', opts(FONTS), t.font ?? 'system', { blank: null })}</div>
 <div><label>Corners</label>${select('themeCorners', opts(CORNERS), t.corners ?? 'soft', { blank: null })}</div></div>
 <label>Dashboard name</label>${input('themeTitle', t.title ?? '', { placeholder: 'Pixel Bot dashboard' })}`, 'Dashboard look')}`

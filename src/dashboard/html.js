@@ -198,6 +198,25 @@ function themeCss(theme = {}) {
   return parts.join('\n');
 }
 
+/** Ready-made looks. Each has a light and a dark version (dark is used at night / in dark mode). */
+const PRESETS = {
+  lavender: {
+    name: 'Cozy lavender',
+    light: '--bg:#f5effc;--card:#fffbfe;--text:#3d2b52;--muted:#85739a;--line:#eadcf3;--brand:#8b6cf6;--brand-text:#fff;--pink:#ff8fbf;--ok:#2f9e78;--warn:#c27a12;--bad:#e0507a;--field:#fff;color-scheme:light',
+    dark: '--bg:#211a2c;--card:#2d2440;--text:#f3e9ff;--muted:#b8a6cc;--line:#43375a;--brand:#b39dff;--brand-text:#221a2e;--pink:#ff9ec8;--ok:#5fd6a8;--warn:#f2b552;--bad:#ff7aa2;--field:#261f36;color-scheme:dark',
+  },
+  white: {
+    name: 'Cozy white',
+    light: '--bg:#f7f6f3;--card:#ffffff;--text:#2f2d2b;--muted:#736d67;--line:#e8e4df;--brand:#3e76bb;--brand-text:#fff;--pink:#f3a9bd;--ok:#2f9e78;--warn:#b46f10;--bad:#d24d6b;--field:#fff;color-scheme:light',
+    dark: '--bg:#1c1b1a;--card:#262422;--text:#f1eeea;--muted:#aaa39b;--line:#3a3734;--brand:#9cc2ee;--brand-text:#1b1a19;--pink:#f5b3c5;--ok:#5fd6a8;--warn:#f2b552;--bad:#ff8aa5;--field:#211f1d;color-scheme:dark',
+  },
+  blue: {
+    name: 'Soft blue',
+    light: '--bg:#eef4fb;--card:#ffffff;--text:#24364b;--muted:#5a6e84;--line:#d6e3f1;--brand:#3e76bb;--brand-text:#fff;--pink:#7db4ee;--ok:#2f9e78;--warn:#b46f10;--bad:#d24d6b;--field:#fff;color-scheme:light',
+    dark: '--bg:#16202d;--card:#1e2b3c;--text:#e6eef8;--muted:#a3b4c8;--line:#2f4258;--brand:#8db8ea;--brand-text:#13202e;--pink:#9cc8f5;--ok:#5fd6a8;--warn:#f2b552;--bad:#ff8aa5;--field:#1a2636;color-scheme:dark',
+  },
+};
+
 /** The colours for a forced light or dark mode (instead of following the device). */
 const DARK_VARS = '--bg:#211a2c;--card:#2d2440;--text:#f3e9ff;--muted:#b8a6cc;--line:#43375a;--brand:#b39dff;--brand-text:#221a2e;--pink:#ff9ec8;--ok:#5fd6a8;--warn:#f2b552;--bad:#ff7aa2;--field:#261f36;color-scheme:dark';
 const LIGHT_VARS = '--bg:#f5effc;--card:#fffbfe;--text:#3d2b52;--muted:#85739a;--line:#eadcf3;--brand:#8b6cf6;--brand-text:#fff;--pink:#ff8fbf;--ok:#2f9e78;--warn:#c27a12;--bad:#e0507a;--field:#fff;color-scheme:light';
@@ -224,7 +243,12 @@ function currentTheme() {
 
 function page({ title, user, body }) {
   const theme = currentTheme();
-  const mode = theme.mode === 'dark' ? `:root{${DARK_VARS}}` : theme.mode === 'light' ? `@media (prefers-color-scheme:dark){:root{${LIGHT_VARS}}}` : '';
+  const preset = PRESETS[theme.preset] ?? PRESETS.lavender;
+  const mode = theme.mode === 'dark'
+    ? `:root{${preset.dark}}`
+    : theme.mode === 'light'
+      ? `:root{${preset.light}}@media (prefers-color-scheme:dark){:root{${preset.light}}}`
+      : `:root{${preset.light}}@media (prefers-color-scheme:dark){:root{${preset.dark}}}`;
   const name = theme.title || 'Pixel Bot dashboard';
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(title)} · ${esc(name)}</title>
@@ -265,4 +289,4 @@ const hidden = (name, value) => `<input type="hidden" name="${esc(name)}" value=
 
 const toggle = (name, on, text) => `<label class="toggle"><input type="checkbox" name="${esc(name)}" value="1"${on ? ' checked' : ''}> ${esc(text)}</label>`;
 
-module.exports = { pixelHeart, esc, page, select, checks, toggle, input, textarea, hidden, colorInput, themeCss, textOn, mix, FONTS, CORNERS, MODES };
+module.exports = { PRESETS, pixelHeart, esc, page, select, checks, toggle, input, textarea, hidden, colorInput, themeCss, textOn, mix, FONTS, CORNERS, MODES };

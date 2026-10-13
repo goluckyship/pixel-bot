@@ -18,6 +18,11 @@ function settings() {
   b.status ??= 'online';
   b.activityType ??= 'Listening';
   b.activityText ??= '/help';
+  if (!b.themeV2) {
+    b.theme = { preset: 'blue' }; // the owner asked for the soft blue look
+    b.themeV2 = true;
+    db.saveSoon();
+  }
   return b;
 }
 
