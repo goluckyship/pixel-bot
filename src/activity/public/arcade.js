@@ -14,7 +14,8 @@
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const now = () => Date.now() + offset;
   const player = (id) => (state && state.players.find((p) => p.id === id)) || { id, name: 'Someone', color: '#9fb3d1', score: 0, wins: 0 };
-  const ic = (name, h = 18) => `<img class="ic" src="/activity/i-${name}.svg" alt="" style="height:${h}px">`;
+  const ver = (document.querySelector('script[src*="arcade.js"]')?.src.split('?v=')[1]) || '';
+  const ic = (name, h = 18) => `<img class="ic" src="/activity/i-${name}.svg?v=${ver}" alt="" style="height:${h}px">`;
   const av = (p) => (p.bot ? '<span class="av botav"><img src="/activity/bot.svg" alt=""></span>' : `<span class="av" style="background:${esc(p.color)}">${esc((p.name || '?').trim()[0] || '?').toUpperCase()}</span>`);
   const chip = (p, extra = '', cls = '') => `<span class="chip ${p.id === state.me ? 'me' : ''} ${cls}">${av(p)}${esc(p.name)}${extra}</span>`;
 
@@ -93,7 +94,7 @@
 ${people ? `<div class="card pickcard"><h2>${twoPlayer ? 'Play a friend' : 'Play without Pixel Bot'}</h2><div class="row">${people}</div>${twoPlayer && !others.length ? '' : ''}</div>` : `<div class="card pickcard"><h2>Play a friend</h2><p class="sub" style="text-align:left">Nobody else is here yet. ${web ? `Share room code <b>${esc(document.body.dataset.code)}</b>.` : 'Invite friends into the activity.'}</p></div>`}
 <div class="row"><button class="btn ghost" data-act="cancel">Cancel</button></div>`;
     }
-    const cards = Object.entries(state.games).map(([id, g]) => `<button class="game" data-act="pick" data-game="${id}"><span class="em">${ic(g.icon, 40)}</span><b>${esc(g.name)}</b><small>${esc(g.blurb)}</small><span class="tag">${esc(g.players)}</span></button>`).join('');
+    const cards = Object.entries(state.games).map(([id, g]) => `<button class="game" data-act="pick" data-game="${id}"><span class="em">${ic(g.icon || 'star', 40)}</span><b>${esc(g.name)}</b><small>${esc(g.blurb)}</small><span class="tag">${esc(g.players)}</span></button>`).join('');
     return `${header(`${state.players.length} player${state.players.length === 1 ? '' : 's'} here`)}
 <div class="card"><h2>Players</h2><div class="players">${players}</div></div>
 <div class="games">${cards}</div>

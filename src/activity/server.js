@@ -11,6 +11,14 @@ const arcade = require('./arcade');
 const PUBLIC = path.join(__dirname, 'public');
 const TYPES = { '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.html': 'text/html; charset=utf-8' };
 const tokens = new Map(); // our token -> { user, expires }
+
+// A fingerprint of the arcade's files, added to their addresses (?v=...) so
+// browsers and proxies always load the newest version after an update.
+const VERSION = (() => {
+  const h = crypto.createHash('sha1');
+  for (const f of fs.readdirSync(PUBLIC).sort()) h.update(f).update(fs.readFileSync(path.join(PUBLIC, f)));
+  return h.digest('hex').slice(0, 10);
+})();
 const TOKEN_LIFE = 12 * 3600_000;
 
 const CSP = [
@@ -72,9 +80,9 @@ const attr = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt
 function page(clientId, web = null) {
   const extra = web ? ` data-mode="web" data-room="${attr(web.room)}" data-code="${attr(web.code)}" data-token="${attr(web.token)}"` : '';
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
-<title>Pixel Arcade</title><link rel="icon" href="/activity/bot.svg"><link rel="stylesheet" href="/activity/arcade.css"></head>
+<title>Pixel Arcade</title><link rel="icon" href="/activity/bot.svg?v=${VERSION}"><link rel="stylesheet" href="/activity/arcade.css?v=${VERSION}"></head>
 <body data-client="${String(clientId).replace(/\D/g, '')}"${extra}><div id="app"><div class="boot"><div class="bot big"></div><p>Loading the arcade…</p></div></div>
-<script src="/activity/discord.js"></script><script src="/activity/arcade.js"></script></body></html>`;
+<script src="/activity/discord.js?v=${VERSION}"></script><script src="/activity/arcade.js?v=${VERSION}"></script></body></html>`;
 }
 
 /**
@@ -96,7 +104,7 @@ async function handle(req, res, url, ctx) {
   if (req.method === 'GET' && /^[\w-]+\.(js|css|svg)$/.test(sub)) {
     const file = path.join(PUBLIC, sub);
     if (!file.startsWith(PUBLIC + path.sep) || !fs.existsSync(file)) { res.writeHead(404); res.end(); return true; }
-    res.writeHead(200, { 'Content-Type': TYPES[path.extname(file)], 'Cache-Control': 'no-cache', 'X-Content-Type-Options': 'nosniff' });
+    res.writeHead(200, { 'Content-Type': TYPES[path.extname(file)], 'Cache-Control': url.searchParams.get('v') === VERSION ? 'public, max-age=31536000, immutable' : 'no-store', 'X-Content-Type-Options': 'nosniff' });
     res.end(fs.readFileSync(file));
     return true;
   }
@@ -158,4 +166,4 @@ function webRooms() {
   return [...arcade.rooms.values()].filter((r) => r.id.startsWith('web-') && r.players.size).map((r) => ({ code: r.id.slice(4), players: [...r.players.values()].map((p) => p.name), game: r.game && !r.game.finished ? arcade.GAMES[r.game.type]?.name : null }));
 }
 
-module.exports = { handle, CSP, tokens, issue, webPage, webRooms, cleanCode, newCode };
+module.exports = { VERSION, handle, CSP, tokens, issue, webPage, webRooms, cleanCode, newCode };
