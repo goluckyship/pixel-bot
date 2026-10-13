@@ -15,7 +15,20 @@ h1,h2,header b{font-family:var(--head);font-weight:600;letter-spacing:.005em}
 h1{font-size:30px;line-height:1.2;margin:0 0 6px}h2{font-size:20px;line-height:1.3;margin:0 0 4px}
 header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 20px;background:color-mix(in srgb,var(--card) 88%,transparent);border-bottom:2px dashed var(--line);position:sticky;top:0;z-index:5;backdrop-filter:blur(8px)}
 header .brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--text)}header b{font-size:19px}
-header .who{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:14px}header .who img{width:30px;height:30px;border-radius:50%;border:2px solid var(--pink)}
+header .who{display:flex;align-items:center;gap:10px;color:var(--text);font-size:14px;font-weight:600}header .who img,.noav{width:30px;height:30px;border-radius:50%;border:2px solid var(--pink);object-fit:cover}.noav{display:inline-grid;place-items:center;background:var(--brand);color:var(--brand-text);font-weight:700;font-size:14px}
+.menu{position:relative}.menu>summary{list-style:none;display:flex;align-items:center;gap:12px;cursor:pointer;padding:5px 6px 5px 6px;border-radius:999px;border:2px solid var(--line);background:var(--card);transition:border-color .15s,box-shadow .15s}.menu>summary::-webkit-details-marker{display:none}
+.menu>summary:hover,.menu[open]>summary{border-color:var(--brand);box-shadow:0 0 0 3px color-mix(in srgb,var(--brand) 18%,transparent)}.menu>summary:focus-visible{outline:3px solid var(--brand);outline-offset:2px}
+.burger{width:34px;height:34px;border-radius:50%;display:grid;place-content:center;gap:4px;background:color-mix(in srgb,var(--brand) 14%,transparent)}.burger i{display:block;width:16px;height:2px;border-radius:2px;background:var(--text);transition:transform .2s,opacity .2s}
+.menu[open] .burger i:nth-child(1){transform:translateY(6px) rotate(45deg)}.menu[open] .burger i:nth-child(2){opacity:0}.menu[open] .burger i:nth-child(3){transform:translateY(-6px) rotate(-45deg)}
+.menu[open]>summary::before{content:"";position:fixed;inset:0;cursor:default;z-index:-1}
+.mpanel{position:absolute;right:0;top:calc(100% + 10px);width:300px;max-width:calc(100vw - 32px);background:var(--card);border:2px solid var(--line);border-radius:18px;box-shadow:0 18px 40px -12px rgba(0,0,0,.35);padding:8px;z-index:20;animation:mpop .14s ease-out}
+@keyframes mpop{from{opacity:0;transform:translateY(-6px) scale(.98)}to{opacity:1;transform:none}}
+.mhead{display:flex;align-items:center;gap:12px;padding:10px 10px 12px;margin-bottom:6px;border-bottom:2px dashed var(--line)}.mhead img,.mhead .noav{width:40px;height:40px}.mhead b{display:block;font-size:15px}.mhead small{display:block;margin-top:3px;color:var(--muted);font-size:12.5px}
+.mi{display:flex;align-items:center;gap:12px;padding:10px;border-radius:12px;text-decoration:none;color:var(--text)}.mi:hover,.mi:focus-visible{background:color-mix(in srgb,var(--brand) 12%,transparent);outline:none}
+.mi b{display:block;font-size:14.5px}.mi small{display:block;color:var(--muted);font-size:12.5px;margin-top:1px;line-height:1.35}
+.mic{flex:none;width:36px;height:36px;border-radius:10px;display:grid;place-items:center;background:color-mix(in srgb,var(--brand) 13%,transparent);color:var(--brand)}
+.mi.danger .mic{background:color-mix(in srgb,var(--bad) 13%,transparent);color:var(--bad)}.mi.danger b{color:var(--bad)}.msep{height:2px;margin:6px 4px;background:var(--line);border-radius:2px}
+@media (max-width:640px){header .whoname{display:none}}
 .heart{display:block;image-rendering:pixelated;shape-rendering:crispEdges}.heart .fill{fill:var(--pink)}.heart .edge{fill:var(--brand)}.heart .shine{fill:#fff}
 main{max-width:880px;margin:0 auto;padding:28px 16px 80px}
 .sub{color:var(--muted);margin:0 0 22px}
@@ -66,7 +79,7 @@ button.small:hover{border-color:var(--bad);transform:none}
 .problems{border-color:var(--warn);border-style:dashed}.problems li{margin:4px 0}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 16px}
 .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 16px}
-@media (max-width:640px){.grid2,.grid3{grid-template-columns:1fr}header{flex-wrap:wrap}h1{font-size:26px}.card{padding:18px 16px 20px}}
+@media (max-width:640px){.grid2,.grid3{grid-template-columns:1fr}h1{font-size:26px}.card{padding:18px 16px 20px}}
 table{width:100%;border-collapse:separate;border-spacing:0;font-size:14px}td,th{text-align:left;padding:10px 8px;border-bottom:2px dotted var(--line);vertical-align:top}th{color:var(--muted);font-weight:700}
 .tablewrap{overflow-x:auto}
 nav.jump{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 22px}
@@ -249,6 +262,29 @@ function currentTheme() {
   }
 }
 
+// Line icons for the menu (drawn with the text colour, so they suit every theme).
+const ICONS = {
+  home: '<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h5v-6h4v6h5V9.5"/>',
+  code: '<path d="m8 7-5 5 5 5"/><path d="m16 7 5 5-5 5"/><path d="m14 4-4 16"/>',
+  key: '<circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 8.7-8.7"/><path d="m16 7 2.5 2.5"/><path d="m18.5 4.5 2 2"/>',
+  out: '<path d="M14 4h5a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-5"/><path d="M10 16l-4-4 4-4"/><path d="M6 12h10"/>',
+};
+const icon = (name) => `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`;
+
+/** The ☰ menu: who you are, then each place you can go with a short caption. */
+function menu(user) {
+  const item = (href, ic, label, caption, extra = '') => `<a class="mi${extra}" href="${href}"><span class="mic">${icon(ic)}</span><span><b>${label}</b><small>${caption}</small></span></a>`;
+  const items = [
+    item('/', 'home', 'Servers', 'Pick a server and change its settings'),
+    user.isOwner ? item('/source', 'code', 'Code', 'Read and search Pixel Bot\'s code') : '',
+    item('/account', 'key', 'Backup login', 'One-time links to log in without Discord'),
+    '<div class="msep"></div>',
+    item('/logout', 'out', 'Log out', 'Sign out on this device', ' danger'),
+  ].join('');
+  return `<details class="menu"><summary aria-label="Open menu"><span class="who">${user.avatar ? `<img src="${esc(user.avatar)}" alt="">` : `<span class="noav">${esc((user.username || '?')[0].toUpperCase())}</span>`}<span class="whoname">${esc(user.username)}</span></span><span class="burger" aria-hidden="true"><i></i><i></i><i></i></span></summary>
+<nav class="mpanel"><div class="mhead">${user.avatar ? `<img src="${esc(user.avatar)}" alt="">` : `<span class="noav">${esc((user.username || '?')[0].toUpperCase())}</span>`}<span><b>${esc(user.username)}</b><small>${user.isOwner ? '<span class="crown">👑 Owner</span>' : 'Signed in with Discord'}</small></span></div>${items}</nav></details>`;
+}
+
 function page({ title, user, body, head = '' }) {
   const theme = currentTheme();
   const preset = PRESETS[theme.preset] ?? PRESETS.lavender;
@@ -267,7 +303,7 @@ function page({ title, user, body, head = '' }) {
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito:wght@400;600;700&display=swap">
 <style>${CSS}${mode}${themeCss(theme)}</style></head><body>
-<header><a class="brand" href="/">${pixelHeart(28)}<b>${esc(name)}</b></a>${user ? `<span class="who">${user.avatar ? `<img src="${esc(user.avatar)}" alt="">` : ''}${user.isOwner ? '<span class="crown">👑 Owner</span>' : ''}${user.isOwner ? '<a href="/source" title="Pixel Bot\'s code">📜</a> ' : ''}${esc(user.username)} <a href="/account" title="One-time backup login links">🔑</a> <a href="/logout">Log out</a></span>` : ''}</header>
+<header><a class="brand" href="/">${pixelHeart(28)}<b>${esc(name)}</b></a>${user ? menu(user) : ''}</header>
 <main>${body}</main></body></html>`;
 }
 
