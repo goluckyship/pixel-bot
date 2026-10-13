@@ -317,7 +317,7 @@ function guildPage({ guild, user, csrf, flash, problems, editingCommand }) {
   const autoOn = Object.entries(automod.FEATURES).filter(([key]) => rules[key]).length;
 
   const body = `
-<div class="welcomebar">${pixelBot(48, 'beat')}<div><h1>${esc(guild.name)}</h1><p class="sub">Tap a section to open it. Everything saves the moment you press Save.</p></div>${refreshButton(guild.id, csrf, `/g/${guild.id}`)}</div>
+<div class="welcomebar">${pixelBot(48, 'beat')}<div><h1>${esc(guild.name)}</h1><p class="sub">Tap a section to open it. Everything saves the moment you press Save.</p></div><div class="wbtns"><a class="button secondary" href="/g/${esc(guild.id)}/run" title="Use slash commands here, replies show on this page">⌨️ Run a command</a>${refreshButton(guild.id, csrf, `/g/${guild.id}`)}</div></div>
 ${flash && !flash.section ? flashBox(flash) : ''}
 ${problems.length ? `<div class="card problems"><h2>💡 A few things to check</h2><ul>${problems.map((p) => `<li>${esc(p.replace(/\*\*/g, '').replace(/<@&(\d+)>/g, (m, id) => guild.roles.cache.get(id)?.name ?? 'a role'))}</li>`).join('')}</ul></div>` : ''}
 

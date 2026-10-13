@@ -12,6 +12,8 @@ const auth = require('./auth');
 const codes = require('../lib/logincodes');
 const links = require('../lib/loginlinks');
 const source = require('./source');
+const runner = require('./runner');
+const runPages = require('./runpages');
 const pages = require('./pages');
 const { apply, applyPanel } = require('./actions');
 const panels = require('../lib/panels');
@@ -95,6 +97,7 @@ const flashes = new Map(); // session csrf -> { ok, text } shown once
 
 function createHandler(client, config) {
   const imageCache = new Map();
+  const pendingForms = new Map(); // forms a command opened on the dashboard, waiting to be filled in
   const send = (res, status, html, headers = {}) => {
     res.writeHead(status, {
       'Content-Type': 'text/html; charset=utf-8',
@@ -295,6 +298,80 @@ function createHandler(client, config) {
       // /g/<server>/save/<section>         save a section (POST)
       // /g/<server>/panel/<id>             edit a panel
       // /g/<server>/panel/<id>/<action>    save/duplicate/delete a panel (POST)
+      // /g/<server>/run                 list of commands
+      // /g/<server>/run/<command>       its form (GET) / run it (POST)
+      // /g/<server>/run/<command>/form  answer a form the command opened (POST)
+      const runMatch = /^\/g\/(\d+)\/run(?:\/([\w-]{1,32})(\/form)?)?$/.exec(url.pathname);
+      if (runMatch) {
+        const [, guildId, name, isForm] = runMatch;
+        const guild = client.guilds.cache.get(guildId);
+        const access = guild && (await memberWithAccess(guild, user.id));
+        const member = guild && (await guild.members.fetch(user.id).catch(() => null));
+        if (!access || !member) {
+          const e = pages.errorPage(user, access ? 'You need to be a member of that server to run its commands.' : 'You need the Manage Server permission in that server.', 403);
+          return send(res, e.status, e.html);
+        }
+        const commands = runner.commandList(client, guild.id).filter((c) => runner.allowed(member, c.json));
+        if (!name) return send(res, 200, runPages.listPage(user, guild, commands, url.searchParams.get('q')?.slice(0, 50)));
+        const command = commands.find((c) => c.name === name);
+        if (!command) {
+          const e = pages.errorPage(user, 'That command doesn\'t exist, or you don\'t have the permission it needs.', 404);
+          return send(res, e.status, e.html);
+        }
+        const defaultChannelId = guild.systemChannelId ?? [...guild.channels.cache.values()].find((c) => c.type === 0)?.id;
+        if (req.method === 'GET' && !isForm) {
+          if (guild.memberCount <= 2000) await guild.members.fetch().catch(() => null);
+          const members = [...guild.members.cache.values()].filter((m) => !m.user.bot).sort((a, b) => a.displayName.localeCompare(b.displayName)).slice(0, 2000);
+          const autocomplete = {};
+          for (const v of runner.variants(command.json)) for (const o of v.options) if (o.autocomplete) autocomplete[o.name] = await runner.suggestions(client, guild, member, command.name, o.name);
+          return send(res, 200, runPages.commandPage(user, guild, session.csrf, command, { members, autocomplete, defaultChannelId }));
+        }
+        if (req.method === 'POST') {
+          const form = parseForm(await readBody(req));
+          if (!auth.csrfOk(session, form.csrf)) {
+            const e = pages.errorPage(user, 'That form expired. Go back, refresh the page and try again.', 403);
+            return send(res, e.status, e.html);
+          }
+          const channel = guild.channels.cache.get(String(form.where ?? '')) ?? guild.channels.cache.get(defaultChannelId) ?? null;
+          const post = form.post === '1';
+          const perms = channel?.permissionsFor?.(member);
+          if (!channel || !perms?.has(PermissionFlagsBits.ViewChannel) || (post && !perms.has(PermissionFlagsBits.SendMessages))) {
+            const e = pages.errorPage(user, 'Pick a channel you can see (and post in, if you ticked "Also post").', 403);
+            return send(res, e.status, e.html);
+          }
+          const again = `/g/${guild.id}/run/${command.name}`;
+          let result;
+          if (isForm) {
+            const fieldValues = {};
+            for (const [k, v] of Object.entries(form)) if (k.startsWith('f_')) fieldValues[k.slice(2)] = v;
+            const customId = String(form.customId ?? '');
+            const key = `${session.csrf}|${customId}`;
+            const shownAt = pendingForms.get(key);
+            pendingForms.delete(key);
+            if (!customId.startsWith('pb:') || !shownAt || Date.now() - shownAt > 30 * 60_000) {
+              const e = pages.errorPage(user, 'That form expired or was already sent. Run the command again.', 400);
+              return send(res, e.status, e.html);
+            }
+            result = await runner.run({ client, guild, member, channel, mode: 'modal', commandName: command.name, customId, fieldValues, post });
+          } else {
+            const [group, sub] = String(form.v ?? '/').split('/');
+            const values = {};
+            for (const [k, v] of Object.entries(form)) if (k.startsWith('o_')) values[k.slice(2)] = Array.isArray(v) ? v[0] : v;
+            const variant = runner.variants(command.json).find((x) => (x.group ?? '') === group && (x.sub ?? '') === sub);
+            await runner.loadPicked(guild, variant?.options, values);
+            result = await runner.run({ client, guild, member, channel, commandName: command.name, group: group || null, sub: sub || null, values, post });
+          }
+          if (result.modal?.customId) {
+            pendingForms.set(`${session.csrf}|${result.modal.customId}`, Date.now());
+            if (pendingForms.size > 500) pendingForms.delete(pendingForms.keys().next().value);
+          }
+          const label = `/${command.name}${isForm ? ' (form)' : ''}`;
+          owner.audit({ userId: user.id, username: user.username, guildId: guild.id, what: `Ran ${label} from the dashboard`, ok: !result.error, text: result.error ?? '' });
+          console.log(`Dashboard: ${user.username} ran ${label} in ${guild.name}${result.error ? ` (${result.error})` : ''}`);
+          return send(res, 200, runPages.resultPage(user, guild, session.csrf, command, result, { channel, post, again }));
+        }
+      }
+
       const match = /^\/g\/(\d+)(?:\/(save|panel)\/([a-z0-9-]+)(?:\/([a-z]+))?)?$/.exec(url.pathname);
       if (match) {
         const [, guildId, area, target, action] = match;
