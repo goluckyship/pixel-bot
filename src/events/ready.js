@@ -22,6 +22,31 @@ function seedWelcome(guild) {
   db.save();
 }
 
+/**
+ * Replaces the bot's slash commands with the current list. If the Pixel Arcade
+ * activity is switched on, Discord also gives the bot a "Launch" command; it
+ * must be kept in the list or Discord refuses the update.
+ */
+async function registerCommands(client, commands) {
+  const rest = client.rest;
+  const appId = client.application?.id;
+  if (rest && appId) {
+    try {
+      const { Routes } = require('discord.js');
+      const existing = await rest.get(Routes.applicationCommands(appId));
+      const launch = (existing ?? []).filter((c) => c.type === 4).map(({ id, application_id: a, version, guild_id: g, ...keep }) => keep);
+      if (launch.length) {
+        await rest.put(Routes.applicationCommands(appId), { body: [...commands, ...launch] });
+        console.log('Kept the Pixel Arcade "Launch" command.');
+        return;
+      }
+    } catch (error) {
+      console.warn(`Couldn't check for the activity Launch command: ${error.message}`);
+    }
+  }
+  await client.application.commands.set(commands);
+}
+
 /** Brings everyone's Staff role up to date (in case roles changed while the bot was offline). */
 async function syncAllStaff(guild) {
   const members = await guild.members.fetch();
@@ -34,6 +59,7 @@ async function syncAllStaff(guild) {
 
 module.exports = {
   seedWelcome,
+  registerCommands,
   name: Events.ClientReady,
   once: true,
   async execute(client) {
@@ -45,7 +71,7 @@ module.exports = {
     // Tell Discord which slash commands exist. This runs on every start, so
     // adding or editing a command only takes a restart.
     const commands = client.commands.map((command) => command.data.toJSON());
-    await client.application.commands.set(commands);
+    await registerCommands(client, commands);
     console.log(`Registered ${commands.length} slash commands.`);
 
     appearance.applyPresence(client);

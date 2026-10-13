@@ -13,6 +13,7 @@ const codes = require('../lib/logincodes');
 const links = require('../lib/loginlinks');
 const source = require('./source');
 const runner = require('./runner');
+const activity = require('../activity/server');
 const runPages = require('./runpages');
 const pages = require('./pages');
 const { apply, applyPanel } = require('./actions');
@@ -120,6 +121,9 @@ function createHandler(client, config) {
     try {
       const site = siteFor(req, config);
       const url = new URL(req.url, site.base);
+      // The Pixel Arcade (Discord Activity) has its own pages and login.
+      if (await activity.handle(req, res, url, { clientId: client.application.id, clientSecret: config.secret })) return;
+
       const session = auth.getSession(req);
       const user = session?.user ? { ...session.user, isOwner: owner.isOwner(client, session.user.id) } : null;
 
