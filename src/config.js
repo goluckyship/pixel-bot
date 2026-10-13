@@ -1,10 +1,17 @@
 // Server setup for The Pixel Bassment.
 //
+// These defaults only apply to the home server below. Any other server Pixel Bot
+// joins starts clean (no automatic roles, no staff ladder) and is set up in the
+// dashboard instead.
+//
 // Roles and channels are matched by name, ignoring emoji, symbols, spaces and
 // capitals, so "🔱 SR Moderator" can be written here as "SR Moderator".
 // You can also use an ID (the long number) instead of a name.
 // After changing this file, restart the bot. Check the result with /setup show.
 module.exports = {
+  // The Pixel Bassment's server ID.
+  homeServer: '1557979850625515570',
+
   // Roles every new member gets when they join.
   autoroles: ['Pixel'],
 

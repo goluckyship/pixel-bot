@@ -1,5 +1,5 @@
 // Runs once, when Pixel Bot has connected to Discord.
-const { Events, OAuth2Scopes, PermissionFlagsBits } = require('discord.js');
+const { Events } = require('discord.js');
 const reminders = require('../lib/reminders');
 const schedules = require('../lib/schedules');
 const dashboard = require('../dashboard/server');
@@ -15,6 +15,7 @@ const panels = require('../lib/panels');
 function seedWelcome(guild) {
   const settings = db.guild(guild.id);
   if (settings.welcomeSeeded) return;
+  if (!require('../lib/settings').isHome(guild.id)) return; // other servers turn welcomes on in the dashboard
   const channel = findChannel(guild, config.welcome.channel);
   if (channel && !settings.welcome) settings.welcome = { channelId: channel.id, message: config.welcome.message };
   settings.welcomeSeeded = true;
@@ -32,6 +33,7 @@ async function syncAllStaff(guild) {
 }
 
 module.exports = {
+  seedWelcome,
   name: Events.ClientReady,
   once: true,
   async execute(client) {
@@ -66,32 +68,7 @@ module.exports = {
       if (changed) console.log(`Updated the Staff role for ${changed} member(s) in ${guild.name}.`);
     }
 
-    const invite = client.generateInvite({
-      scopes: [OAuth2Scopes.Bot, OAuth2Scopes.ApplicationsCommands],
-      permissions: [
-        PermissionFlagsBits.ViewChannel,
-        PermissionFlagsBits.SendMessages,
-        PermissionFlagsBits.SendMessagesInThreads,
-        PermissionFlagsBits.EmbedLinks,
-        PermissionFlagsBits.ReadMessageHistory,
-        PermissionFlagsBits.SendPolls,
-        PermissionFlagsBits.ManageMessages,
-        PermissionFlagsBits.KickMembers,
-        PermissionFlagsBits.BanMembers,
-        PermissionFlagsBits.ModerateMembers,
-        PermissionFlagsBits.ManageRoles,
-        PermissionFlagsBits.ManageChannels,
-        PermissionFlagsBits.ManageGuildExpressions,
-        PermissionFlagsBits.AttachFiles,
-        PermissionFlagsBits.AddReactions,
-        PermissionFlagsBits.MentionEveryone,
-        PermissionFlagsBits.MoveMembers, // AFK room
-        PermissionFlagsBits.ManageNicknames, // [AFK] nicknames, role restore
-        PermissionFlagsBits.ManageGuild, // invite tracking
-        PermissionFlagsBits.CreatePublicThreads, // suggestion threads
-        PermissionFlagsBits.ChangeNickname,
-      ],
-    });
+    const invite = require('../lib/invite').inviteLink(client);
 
     const serverCount = client.guilds.cache.size;
     console.log(`In ${serverCount} server${serverCount === 1 ? '' : 's'}.`);

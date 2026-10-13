@@ -39,7 +39,7 @@ module.exports = {
 
     if (action === 'set') {
       const channel = interaction.options.getChannel('channel');
-      const message = interaction.options.getString('message') ?? DEFAULT_MESSAGE;
+      const message = interaction.options.getString('message') ?? require('../../lib/settings').get(interaction.guild.id).welcome.message;
 
       // Make sure I can actually post there before saving.
       const me = interaction.guild.members.me;

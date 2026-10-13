@@ -87,6 +87,7 @@ nav.jump a{font-size:14px;font-weight:700;padding:6px 14px;border:2px solid var(
 nav.jump a:hover{border-color:var(--pink);background:color-mix(in srgb,var(--pink) 14%,var(--card))}
 .servers a{display:flex;align-items:center;gap:14px;padding:14px 16px;border:2px solid var(--line);border-radius:var(--r);margin:0 0 12px;background:var(--card);text-decoration:none;color:var(--text);box-shadow:0 5px 0 -1px var(--line);transition:transform .12s,border-color .15s}
 .servers a:hover{border-color:var(--pink);transform:translateY(-2px)}
+.servers a.addserver{border-style:dashed;box-shadow:none;background:transparent}.servers a.addserver .noicon{background:color-mix(in srgb,var(--brand) 14%,transparent);color:var(--brand);font-size:22px}
 .servers img,.servers .noicon{width:48px;height:48px;border-radius:16px;background:var(--soft);display:grid;place-items:center;font:600 20px var(--head);color:var(--brand)}
 .muted{color:var(--muted)}code{font-size:14px;background:var(--soft);padding:1px 6px;border-radius:6px}
 details.item{border:2px solid var(--line);border-radius:calc(var(--r) * .8);padding:12px 16px;margin:12px 0;background:color-mix(in srgb,var(--bg) 45%,var(--card))}
@@ -308,6 +309,7 @@ const ICONS = {
   home: '<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h5v-6h4v6h5V9.5"/>',
   code: '<path d="m8 7-5 5 5 5"/><path d="m16 7 5 5-5 5"/><path d="m14 4-4 16"/>',
   key: '<circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 8.7-8.7"/><path d="m16 7 2.5 2.5"/><path d="m18.5 4.5 2 2"/>',
+  plus: '<rect x="3" y="3" width="18" height="18" rx="5"/><path d="M12 8v8"/><path d="M8 12h8"/>',
   out: '<path d="M14 4h5a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-5"/><path d="M10 16l-4-4 4-4"/><path d="M6 12h10"/>',
 };
 const icon = (name) => `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`;
@@ -316,7 +318,8 @@ const icon = (name) => `<svg viewBox="0 0 24 24" width="20" height="20" fill="no
 function menu(user) {
   const item = (href, ic, label, caption, extra = '') => `<a class="mi${extra}" href="${href}"><span class="mic">${icon(ic)}</span><span><b>${label}</b><small>${caption}</small></span></a>`;
   const items = [
-    item('/', 'home', 'Servers', 'Pick a server and change its settings'),
+    item('/?all=1', 'home', 'Servers', 'Pick a server and change its settings'),
+    item('/invite', 'plus', 'Add to a server', 'Invite Pixel Bot to another server'),
     user.isOwner ? item('/source', 'code', 'Code', 'Read and search Pixel Bot\'s code') : '',
     item('/account', 'key', 'Backup login', 'One-time links to log in without Discord'),
     '<div class="msep"></div>',

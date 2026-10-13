@@ -13,13 +13,34 @@ function overrides(guildId) {
   return g.settings;
 }
 
+// What a server other than the home server starts with: nothing automatic.
+const FRESH = {
+  ...config,
+  autoroles: [],
+  staffRole: '',
+  staffSourceRoles: [],
+  ranks: [],
+  rankManagers: [],
+  logChannel: '',
+  welcome: { channel: 'welcome', message: 'Welcome to {server}, {user}!' },
+  tickets: {
+    ...config.tickets,
+    staffRoles: [],
+    panelText: 'Need help? Click the button below to open a private ticket with the staff team.',
+  },
+};
+
+const isHome = (guildId) => !guildId || !config.homeServer || String(guildId) === String(config.homeServer);
+const defaultsFor = (guildId) => (isHome(guildId) ? config : FRESH);
+
 /** The settings in effect for a server. */
 function get(guildId) {
   const saved = guildId ? overrides(guildId) : {};
+  const base = defaultsFor(guildId);
   return {
-    ...config,
+    ...base,
     ...Object.fromEntries(EDITABLE.filter((key) => key !== 'tickets' && saved[key] !== undefined).map((key) => [key, saved[key]])),
-    tickets: { ...config.tickets, ...(saved.tickets ?? {}) },
+    tickets: { ...base.tickets, ...(saved.tickets ?? {}) },
   };
 }
 
@@ -39,4 +60,4 @@ function update(guildId, patch) {
   return get(guildId);
 }
 
-module.exports = { get, update, EDITABLE, TICKET_KEYS };
+module.exports = { get, update, isHome, defaultsFor, EDITABLE, TICKET_KEYS };

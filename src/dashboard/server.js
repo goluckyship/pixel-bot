@@ -209,6 +209,11 @@ function createHandler(client, config) {
         return res.end(`[InternetShortcut]\r\nURL=${(config.aliases?.[0] ?? site.base)}/start\r\n`);
       }
 
+      // "Add to a server": Discord's own invite screen, with the permissions Pixel Bot needs.
+      if (req.method === 'GET' && url.pathname === '/invite') {
+        return redirect(res, require('../lib/invite').inviteLink(client, url.searchParams.get('server')?.match(/^\d{15,25}$/)?.[0]));
+      }
+
       if (!user) {
         if (req.method === 'GET' && url.pathname === '/') return send(res, 200, pages.landing());
         return redirect(res, '/');
@@ -282,7 +287,7 @@ function createHandler(client, config) {
             guilds.push({ id: guild.id, name: guild.name, memberCount: guild.memberCount, icon: guild.iconURL?.({ size: 64 }) ?? null });
           }
         }
-        if (guilds.length === 1) return redirect(res, `/g/${guilds[0].id}`);
+        if (guilds.length === 1 && !url.searchParams.has('all')) return redirect(res, `/g/${guilds[0].id}`);
         return send(res, 200, pages.serverList(user, guilds));
       }
 

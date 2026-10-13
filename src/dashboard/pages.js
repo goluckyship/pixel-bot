@@ -38,7 +38,7 @@ function landing() {
   return page({
     title: 'Log in',
     body: `<div class="hero">${pixelBot(120, 'beat')}<h1>Pixel Bot</h1>
-<p class="sub">Your cosy control room for The Pixel Bassment. Log in with Discord and everything's one click away.</p>
+<p class="sub">Your cosy control room for your Discord servers. Log in with Discord and everything's one click away.</p>
 <a class="button" href="/login">Log in with Discord</a><br><a class="linky" href="/code">Discord blocked on this computer? Log in with a code</a></div>`,
   });
 }
@@ -143,7 +143,9 @@ function serverList(user, guilds) {
   const items = guilds.length
     ? guilds.map((g) => `<a href="/g/${esc(g.id)}">${g.icon ? `<img src="${esc(g.icon)}" alt="">` : `<span class="noicon">${esc(g.name[0])}</span>`}<span><b>${esc(g.name)}</b><br><span class="muted">${g.memberCount} members</span></span></a>`).join('')
     : '<p class="empty">You need the Manage Server permission in a server Pixel Bot is in.</p>';
-  return page({ title: 'Your servers', user, body: `<h1>Hi ${esc(user.username)}!</h1><p class="sub">Pick a server to look after.</p><div class="servers">${items}</div>` });
+  const add = `<a class="addserver" href="/invite"><span class="noicon">+</span><span><b>Add to a server</b><br><span class="muted">Invite Pixel Bot somewhere new</span></span></a>`;
+  return page({ title: 'Your servers', user, body: `<h1>Hi ${esc(user.username)}!</h1><p class="sub">Pick a server to look after.</p><div class="servers">${items}${add}</div>
+<p class="help">After adding Pixel Bot, come back here and refresh: the new server shows up in this list. It starts with everything switched off, so nothing happens there until you turn things on.</p>` });
 }
 
 function errorPage(user, message, status = 400) {
