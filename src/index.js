@@ -24,6 +24,7 @@ const client = new Client({
 client.commands = loadCommands();
 client.components = collectComponents(client.commands);
 loadEvents(client);
+require('./lib/consolecommands').listen(client); // "backup-link" etc. typed into the hosting console
 
 // Keep running if something unexpected goes wrong, but say what it was.
 client.on('error', (error) => console.error('Discord client error:', error));
