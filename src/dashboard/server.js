@@ -93,6 +93,7 @@ const sectionFor = (target) => (target.startsWith('owner-') ? 'owner' : target.s
 const flashes = new Map(); // session csrf -> { ok, text } shown once
 
 function createHandler(client, config) {
+  const imageCache = new Map();
   const send = (res, status, html, headers = {}) => {
     res.writeHead(status, {
       'Content-Type': 'text/html; charset=utf-8',
@@ -100,10 +101,11 @@ function createHandler(client, config) {
       'X-Frame-Options': 'DENY',
       'X-Content-Type-Options': 'nosniff',
       'Referrer-Policy': 'same-origin',
-      'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https://cdn.discordapp.com data:; form-action 'self'; frame-ancestors 'none'",
+      'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' https://cdn.discordapp.com data:; form-action 'self'; frame-ancestors 'none'",
       ...headers,
     });
-    res.end(html);
+    // School networks block Discord's image server too, so pictures load through Pixel Bot.
+    res.end(String(html).replace(/src="(https:\/\/cdn\.discordapp\.com\/[^"]+)"/g, (m, u) => `src="/img?u=${encodeURIComponent(u.replace(/&amp;/g, '&'))}"`));
   };
   const redirect = (res, location, headers = {}) => {
     res.writeHead(303, { Location: location, 'Cache-Control': 'no-store', ...headers });
@@ -237,6 +239,20 @@ function createHandler(client, config) {
           owner.audit({ userId: user.id, username: user.username, guildId: null, what: 'Made a backup login link', ok: true, text: '' });
           return send(res, 200, pages.linkMade(user, `${config.aliases?.[0] ?? site.base}/r/${token}`));
         }
+      }
+
+      // Discord pictures (avatars, server icons) fetched by the bot for people whose
+      // network blocks Discord. Only Discord's image server, only when logged in.
+      if (req.method === 'GET' && url.pathname === '/img') {
+        let target;
+        try { target = new URL(url.searchParams.get('u') ?? ''); } catch {}
+        if (!target || target.protocol !== 'https:' || target.hostname !== 'cdn.discordapp.com') { res.writeHead(404); return res.end(); }
+        const hit = imageCache.get(target.href);
+        const image = hit ?? (await fetch(target.href).then(async (r) => (r.ok ? { type: r.headers.get('content-type') || 'image/png', body: Buffer.from(await r.arrayBuffer()) } : null)).catch(() => null));
+        if (!image || !/^image\//.test(image.type) || image.body.length > 2_000_000) { res.writeHead(404); return res.end(); }
+        if (!hit) { imageCache.set(target.href, image); if (imageCache.size > 200) imageCache.delete(imageCache.keys().next().value); }
+        res.writeHead(200, { 'Content-Type': image.type, 'Cache-Control': 'private, max-age=86400', 'X-Content-Type-Options': 'nosniff' });
+        return res.end(image.body);
       }
 
       if (req.method === 'GET' && url.pathname === '/') {
