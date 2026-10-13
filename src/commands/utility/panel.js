@@ -57,7 +57,7 @@ module.exports = {
       return null;
     },
     role: (interaction, roleId) => rolebuttons.onClick(interaction, roleId),
-    pnl: (interaction, panelId, what, index) => panels.onInteraction(interaction, panelId, what, index),
+    pnl: (interaction, panelId, what, index, page) => panels.onInteraction(interaction, panelId, what, index, page),
   },
 
   async autocomplete(interaction) {

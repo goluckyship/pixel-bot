@@ -11,6 +11,8 @@ const customCommands = require('../lib/customcommands');
 const appearance = require('../lib/appearance');
 const { resolveEmoji } = require('../lib/emoji');
 const { hexColor } = require('../lib/ui');
+const questionsLib = require('../lib/questions');
+const { FONTS, CORNERS, MODES } = require('./html');
 
 const asList = (value) => (value === undefined ? [] : Array.isArray(value) ? value : [value]);
 const text = (value, max) => String(Array.isArray(value) ? value[0] : value ?? '').replace(/\r\n/g, '\n').trim().slice(0, max);
@@ -25,9 +27,13 @@ function validChannel(guild, id, types = [ChannelType.GuildText, ChannelType.Gui
 
 const isLink = (value) => !value || /^https:\/\/\S+$/i.test(value);
 
-/** Checks a colour box: empty is fine, otherwise it must look like #7c5cff. */
-function colorField(value, what) {
-  const t = text(value, 7);
+/**
+ * Reads a colour picker. Its "default" tick box means no colour of its own.
+ * (Plain text like "#7c5cff" also works, for older forms.)
+ */
+function pickColor(form, name, what) {
+  if (form[`${name}_default`]) return { value: '' };
+  const t = text(form[name], 7);
   if (!t) return { value: '' };
   if (hexColor(t) === null) return { error: `${what} colour should look like #7c5cff.` };
   return { value: t.startsWith('#') ? t.toLowerCase() : `#${t.toLowerCase()}` };
@@ -45,9 +51,9 @@ async function apply(guild, member, sectionId, form) {
       }
       const channelId = validChannel(guild, form.channel);
       if (!channelId) return { ok: false, text: 'Pick a channel for welcome messages.' };
-      const message = text(form.message, 2000);
-      const color = colorField(form.color, 'The welcome');
-      const image = text(form.image, 500);
+      const message = text(form.message, 4096);
+      const color = pickColor(form, 'color', 'The welcome');
+      const image = text(form.image, 2000);
       if (color.error) return { ok: false, text: color.error };
       if (!isLink(image)) return { ok: false, text: 'The image link must start with https://' };
       if (!message && form.plain) return { ok: false, text: 'A plain-text welcome needs a message.' };
@@ -68,9 +74,9 @@ async function apply(guild, member, sectionId, form) {
       }
       const channelId = validChannel(guild, form.channel);
       if (!channelId) return { ok: false, text: 'Pick a channel for goodbye messages.' };
-      const color = colorField(form.color, 'The goodbye');
+      const color = pickColor(form, 'color', 'The goodbye');
       if (color.error) return { ok: false, text: color.error };
-      g.goodbye = { channelId, message: text(form.message, 2000), plain: Boolean(form.plain), color: color.value };
+      g.goodbye = { channelId, message: text(form.message, 4096), plain: Boolean(form.plain), color: color.value };
       db.save();
       return { ok: true, text: 'Goodbye message saved.' };
     }
@@ -87,31 +93,43 @@ async function apply(guild, member, sectionId, form) {
       }
       if (guild.ownerId === member.id && form.status !== undefined) {
         const b = appearance.settings();
-        const color = colorField(form.color, 'The main');
+        const color = pickColor(form, 'color', 'The main');
         if (color.error) return { ok: false, text: color.error };
         if (appearance.STATUSES[form.status]) b.status = form.status;
         if (appearance.ACTIVITIES[form.activityType]) b.activityType = form.activityType;
         b.activityText = text(form.activityText, 128);
         b.color = color.value ? hexColor(color.value) : null;
+        const theme = {};
+        for (const [key, field] of [['accent', 'themeAccent'], ['background', 'themeBackground'], ['card', 'themeCard']]) {
+          const picked = pickColor(form, field, 'The dashboard');
+          if (picked.error) return { ok: false, text: picked.error };
+          if (picked.value) theme[key] = picked.value;
+        }
+        if (MODES[form.themeMode]) theme.mode = form.themeMode;
+        if (FONTS[form.themeFont]) theme.font = form.themeFont;
+        if (CORNERS[form.themeCorners]) theme.corners = form.themeCorners;
+        const title = text(form.themeTitle, Infinity);
+        if (title) theme.title = title;
+        b.theme = theme;
         db.save();
         appearance.applyPresence(guild.client);
-        changes.push('status and colour');
+        changes.push('status, colours and dashboard look');
       }
       return { ok: true, text: changes.length ? `Saved (${changes.join(', ')}).` : 'Nothing changed.' };
     }
     case 'panel-new': {
-      const name = text(form.name, 60);
+      const name = text(form.name, Infinity);
       const panel = panels.create(guild.id, form.type === 'tickets' ? 'tickets' : 'roles', name);
       if (!panel) return { ok: false, text: `You already have ${panels.MAX_PANELS} panels.` };
       return { ok: true, text: `Panel "${panel.name}" created. Set it up below, then post it.`, redirect: `/g/${guild.id}/panel/${panel.id}` };
     }
     case 'command': {
-      const color = colorField(form.color, 'The');
+      const color = pickColor(form, 'color', 'The');
       if (color.error) return { ok: false, text: color.error };
       const toggleRole = validRoles(guild, form.toggleRole)[0] ?? '';
       const result = customCommands.save(guild, new Set(guild.client.commands.keys()), {
-        name: text(form.name, 40), description: text(form.description, 100), response: text(form.response, 4000),
-        title: text(form.title, 256), color: color.value, image: text(form.image, 500), thumbnail: text(form.thumbnail, 500),
+        name: text(form.name, 40), description: text(form.description, 100), response: text(form.response, 4096),
+        title: text(form.title, 256), color: color.value, image: text(form.image, 2000), thumbnail: text(form.thumbnail, 2000),
         footer: text(form.footer, 2048), asCard: form.asCard, private: form.private,
         allowedRoles: validRoles(guild, form.allowedRoles), toggleRole,
       });
@@ -167,7 +185,7 @@ async function apply(guild, member, sectionId, form) {
       return { ok: true, text: 'Automod saved.' };
     }
     case 'filter': {
-      const words = [...new Set(text(form.words, 10000).split('\n').map((w) => w.trim().toLowerCase().replace(/\s+/g, ' ')).filter((w) => w.length >= 2 && w.length <= 50))].slice(0, 200);
+      const words = [...new Set(text(form.words, Infinity).split('\n').map((w) => w.trim().toLowerCase().replace(/\s+/g, ' ')).filter((w) => w.length >= 2))];
       g.filter = words;
       db.save();
       return { ok: true, text: `Word filter saved (${words.length} word${words.length === 1 ? '' : 's'}).` };
@@ -198,14 +216,14 @@ async function apply(guild, member, sectionId, form) {
 
 /** Reads the panel edit form into the panel. Returns an error message, or null. */
 function readPanelForm(guild, panel, form) {
-  const color = colorField(form.color, 'The panel');
+  const color = pickColor(form, 'color', 'The panel');
   if (color.error) return color.error;
-  const image = text(form.image, 500);
-  const thumbnail = text(form.thumbnail, 500);
+  const image = text(form.image, 2000);
+  const thumbnail = text(form.thumbnail, 2000);
   if (!isLink(image) || !isLink(thumbnail)) return 'Image links must start with https://';
 
   const items = [];
-  const slots = Math.min(Number(text(form.slots, 4)) || 0, panels.MAX_ITEMS + 5);
+  const slots = Number(text(form.slots, 6)) || 0;
   for (let i = 0; i < slots; i++) {
     const p = `item${i}_`;
     if (form[`${p}remove`]) continue;
@@ -226,10 +244,28 @@ function readPanelForm(guild, panel, form) {
       if (items.some((item) => item.roleId === roleId)) return `${guild.roles.cache.get(roleId).name} is on this panel twice.`;
       items.push({ ...base, roleId });
     } else {
-      const questions = text(form[`${p}questions`], 500).split('\n').map((q) => q.trim()).filter(Boolean);
-      if (questions.length > panels.MAX_QUESTIONS) return `A ticket form can have up to ${panels.MAX_QUESTIONS} questions.`;
-      const long = questions.find((q) => q.length > 45);
-      if (long) return `This question is longer than 45 characters (Discord's limit): "${long}"`;
+      const questionList = [];
+      const count = Number(text(form[`${p}qcount`], 6)) || 0;
+      for (let q = 0; q < count; q++) {
+        const qp = `${p}q${q}_`;
+        const qText = text(form[`${qp}text`], Infinity);
+        if (!qText) continue; // empty = removed
+        const type = questionsLib.TYPES[form[`${qp}type`]] ? form[`${qp}type`] : 'long';
+        questionList.push({
+          text: qText,
+          type,
+          required: Boolean(form[`${qp}required`]),
+          help: text(form[`${qp}help`], Infinity),
+          placeholder: text(form[`${qp}placeholder`], 150),
+          choices: text(form[`${qp}choices`], Infinity).split('\n').map((c) => c.trim()).filter(Boolean),
+        });
+      }
+      // Older form layout: one question per line.
+      if (!count && form[`${p}questions`] !== undefined) {
+        for (const line of text(form[`${p}questions`], Infinity).split('\n').map((x) => x.trim()).filter(Boolean)) questionList.push({ text: line, type: 'long', required: true });
+      }
+      const itemColor = pickColor(form, `${p}color`, 'The ticket card');
+      if (itemColor.error) return itemColor.error;
       const isNew = i >= panel.items.length;
       const touched = base.label || base.description || form[`${p}category`] || asList(form[`${p}staffRoles`]).length;
       if (isNew && !touched) continue; // the blank "add another" slot wasn't used
@@ -239,19 +275,21 @@ function readPanelForm(guild, panel, form) {
         category: validChannel(guild, form[`${p}category`], [ChannelType.GuildCategory]) ?? '',
         staffRoles: validRoles(guild, form[`${p}staffRoles`]),
         pingStaff: Boolean(form[`${p}pingStaff`]),
-        questions,
-        namePrefix: text(form[`${p}namePrefix`], 40) || 'ticket',
-        welcome: text(form[`${p}welcome`], 2000),
+        questions: questionList,
+        color: itemColor.value,
+        namePrefix: text(form[`${p}namePrefix`], Infinity) || 'ticket',
+        welcome: text(form[`${p}welcome`], 4096),
       });
     }
   }
-  if (items.length > panels.MAX_ITEMS) return `A panel can have up to ${panels.MAX_ITEMS} options.`;
+  const closeEmoji = panel.type === 'tickets' ? resolveEmoji(guild, text(form.closeEmoji, 64)) : { emoji: null };
+  if (closeEmoji.error) return closeEmoji.error;
   if (panel.type === 'tickets' && !items.length) return 'A ticket panel needs at least one ticket type.';
 
   Object.assign(panel, {
-    name: text(form.name, 60) || panel.name,
+    name: text(form.name, Infinity) || panel.name,
     title: text(form.title, 256),
-    description: text(form.description, 4000),
+    description: text(form.description, 4096),
     color: color.value,
     image,
     thumbnail,
@@ -264,7 +302,11 @@ function readPanelForm(guild, panel, form) {
     panel.listRoles = Boolean(form.listRoles);
     panel.exclusive = Boolean(form.exclusive);
   } else {
-    panel.maxOpen = Math.min(Math.max(Number(form.maxOpen) || 1, 1), 10);
+    const maxOpen = Number(form.maxOpen);
+    panel.maxOpen = Number.isInteger(maxOpen) && maxOpen >= 0 ? maxOpen : 1; // 0 = no limit
+    panel.closeLabel = text(form.closeLabel, 80) || 'Close ticket';
+    panel.closeEmoji = closeEmoji.emoji ?? '';
+    panel.closeStyle = panels.STYLES[form.closeStyle] ? form.closeStyle : 'red';
     panel.transcriptChannel = validChannel(guild, form.transcriptChannel) ?? '';
   }
   return null;
@@ -302,7 +344,10 @@ async function applyPanel(guild, member, panel, action, form) {
   if (!perms?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks])) {
     return { ok: false, text: `Saved, but I can't post in #${channel.name}. Give me View, Send Messages and Embed Links there.`, redirect: back };
   }
-  if (what === 'repost') panel.messageId = null;
+  if (what === 'repost') {
+    panel.messageId = null;
+    panel.messageIds = [];
+  }
   try {
     const result = await panels.post(guild, panel, channelId);
     return { ...result, text: result.ok ? `Saved. ${result.text}` : result.text, redirect: back };

@@ -14,7 +14,7 @@ const { apply, applyPanel } = require('./actions');
 const panels = require('../lib/panels');
 const { report } = require('../commands/utility/setup');
 
-const MAX_BODY = 512 * 1024; // big ticket panels send a lot of fields
+const MAX_BODY = 20 * 1024 * 1024; // big panels with lots of questions send a lot of fields
 
 function settingsFromEnv() {
   const base = (process.env.DASHBOARD_URL ?? '').trim().replace(/\/+$/, '');

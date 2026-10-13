@@ -7,10 +7,11 @@ const {
 const settings = require('./settings');
 const db = require('./storage');
 const { findRoles, findCategory, findChannel } = require('./resolve');
-const { embed, ephemeral, truncate, fill, COLORS } = require('./ui');
+const { embed, ephemeral, truncate, fill, hexColor, COLORS } = require('./ui');
 const { sendLog, logEntry } = require('./log');
 const { form, value } = require('./forms');
 const panels = require('./panels');
+const questions = require('./questions');
 
 /** Ticket settings for a server. */
 const ticketSettings = (guildId) => settings.get(guildId).tickets;
@@ -162,39 +163,94 @@ function openFromPanel(guild, userId, panelId) {
   return mine;
 }
 
+// Answers people are part-way through (multi-page forms). Forgotten after 30 minutes.
+const pending = new Map();
+const PENDING_MS = 30 * 60 * 1000;
+const pendingKey = (interaction, panel, index) => `${interaction.guildId}:${interaction.user.id}:${panel.id}:${index}`;
+
+/** "You already have a ticket" check. maxOpen 0 means no limit. */
+function atLimit(interaction, panel) {
+  const max = Number(panel.maxOpen ?? 1);
+  if (max === 0) return null;
+  const mine = openFromPanel(interaction.guild, interaction.user.id, panel.id);
+  return mine.length >= max ? `You already have an open ticket: ${mine.map((id) => `<#${id}>`).join(', ')}` : null;
+}
+
+function showPage(interaction, panel, index, pageIndex) {
+  const item = panel.items[index];
+  const allPages = questions.pages(questions.list(item));
+  const page = allPages[pageIndex];
+  return interaction.showModal(questions.modal(`pb:pnl:${panel.id}:form:${index}:${pageIndex}`, item.label || 'Open a ticket', page, allPages.length, pageIndex));
+}
+
 // A ticket button (or dropdown choice) on a custom panel.
 async function onPanelOpen(interaction, panel, index) {
   const item = panel.items[index];
-  const mine = openFromPanel(interaction.guild, interaction.user.id, panel.id);
-  if (mine.length >= Math.max(1, panel.maxOpen ?? 1)) {
-    return interaction.reply(ephemeral(`You already have an open ticket: ${mine.map((id) => `<#${id}>`).join(', ')}`));
-  }
-  const questions = (item.questions ?? []).filter(Boolean).slice(0, panels.MAX_QUESTIONS);
-  if (!questions.length) {
+  const blocked = atLimit(interaction, panel);
+  if (blocked) return interaction.reply(ephemeral(blocked));
+  if (!questions.list(item).length) {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     return createTicket(interaction, panel, index, []);
   }
-  const fields = questions.map((question, i) => ({ id: `q${i}`, label: question, long: true, required: i === 0, max: 1000 }));
-  return interaction.showModal(form(`pb:pnl:${panel.id}:form:${index}`, item.label || 'Open a ticket', fields));
+  pending.delete(pendingKey(interaction, panel, index));
+  return showPage(interaction, panel, index, 0);
 }
 
-// The ticket form was filled in.
-async function onPanelSubmit(interaction, panel, index) {
+// "Continue" button between pages.
+async function onPanelNext(interaction, panel, index, pageIndex) {
+  const saved = pending.get(pendingKey(interaction, panel, index));
+  if (!saved || saved.page !== pageIndex || Date.now() - saved.at > PENDING_MS) {
+    return interaction.reply(ephemeral('That form timed out. Click the ticket button again to start over.'));
+  }
+  return showPage(interaction, panel, index, pageIndex);
+}
+
+// One page of the ticket form was sent.
+async function onPanelSubmit(interaction, panel, index, pageIndex = 0) {
   const item = panel.items[index];
   if (!item) return interaction.reply(ephemeral('That ticket option was removed. Ask a moderator to update the panel.'));
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  const mine = openFromPanel(interaction.guild, interaction.user.id, panel.id);
-  if (mine.length >= Math.max(1, panel.maxOpen ?? 1)) {
-    return interaction.editReply(`You already have an open ticket: ${mine.map((id) => `<#${id}>`).join(', ')}`);
+  const allPages = questions.pages(questions.list(item));
+  const page = allPages[pageIndex];
+  if (!page) return interaction.reply(ephemeral('The questions changed while you were filling them in. Click the ticket button again.'));
+
+  const key = pendingKey(interaction, panel, index);
+  const earlier = pageIndex === 0 ? [] : pending.get(key)?.answers;
+  if (!earlier) return interaction.reply(ephemeral('That form timed out. Click the ticket button again to start over.'));
+  const answers = [...earlier, ...questions.read(interaction, page)];
+
+  if (pageIndex + 1 < allPages.length) {
+    pending.set(key, { answers, page: pageIndex + 1, at: Date.now() });
+    return interaction.reply({
+      ...ephemeral(`✅ Page ${pageIndex + 1} of ${allPages.length} saved. Click below for the next questions.`),
+      components: [
+        new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId(`pb:pnl:${panel.id}:next:${index}:${pageIndex + 1}`).setLabel(`Continue (${pageIndex + 2}/${allPages.length})`).setStyle(ButtonStyle.Primary),
+        ),
+      ],
+    });
   }
-  const questions = (item.questions ?? []).filter(Boolean).slice(0, panels.MAX_QUESTIONS);
-  const answers = questions.map((question, i) => ({ question, answer: value(interaction, `q${i}`) ?? '' }));
+
+  pending.delete(key);
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const blocked = atLimit(interaction, panel);
+  if (blocked) return interaction.editReply(blocked);
   return createTicket(interaction, panel, index, answers);
 }
 
 /** Lowercase, dash-separated text Discord accepts in a channel name. */
 function channelSlug(text) {
   return String(text).toLowerCase().normalize('NFKD').replace(/[^\p{L}\p{N}_-]+/gu, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+}
+
+/** The close button, styled the way the panel says. */
+function closeButton(panel) {
+  const button = new ButtonBuilder()
+    .setCustomId('pb:ticket:close')
+    .setLabel(truncate(panel?.closeLabel || 'Close ticket', 80))
+    .setStyle((panels.STYLES[panel?.closeStyle] ?? panels.STYLES.red).value);
+  const emoji = panel?.closeEmoji ?? '🔒';
+  if (emoji) button.setEmoji(emoji);
+  return button;
 }
 
 async function createTicket(interaction, panel, index, answers) {
@@ -211,9 +267,10 @@ async function createTicket(interaction, panel, index, answers) {
   ];
   const prefix = channelSlug((item.namePrefix || 'ticket').replaceAll('{username}', user.username)) || 'ticket';
   const reason = answers.map((a) => a.answer).find(Boolean) ?? '';
+  const color = hexColor(item.color) ?? hexColor(panel.color) ?? undefined;
 
   const channel = await guild.channels.create({
-    name: `${prefix}-${String(number).padStart(4, '0')}`.slice(0, 100),
+    name: `${prefix.slice(0, 94)}-${String(number).padStart(4, '0')}`, // Discord caps channel names at 100
     type: ChannelType.GuildText,
     parent: findCategory(guild, item.category || T.category)?.id ?? null,
     topic: truncate(`Ticket #${number} (${item.label || panel.name}) for ${user.tag}${reason ? `: ${reason}` : ''}`, 1024),
@@ -226,25 +283,53 @@ async function createTicket(interaction, panel, index, answers) {
     reason: `Ticket opened by ${user.tag}`,
   });
 
-  s.open[channel.id] = { userId: user.id, number, reason, answers, panelId: panel.id, optionIndex: index, openedAt: Date.now() };
+  s.open[channel.id] = {
+    userId: user.id, number, reason, answers: answers.map(({ question, answer }) => ({ question, answer })),
+    panelId: panel.id, optionIndex: index, openedAt: Date.now(),
+  };
   db.save();
 
-  const card = embed()
+  const card = embed(color)
     .setTitle(truncate(`${item.emoji ? `${item.emoji} ` : ''}${item.label || 'Ticket'} #${number}`, 256))
     .setDescription(truncate(fill(item.welcome || 'Thanks for opening a ticket! Staff will be with you shortly.', { user, guild }), 4096));
-  for (const { question, answer } of answers.slice(0, 5)) card.addFields({ name: truncate(question, 256), value: truncate(answer || '—', 1024) });
+  const blocks = questions.answerBlocks(answers);
+  const answerCards = blocks.map((text, i) => embed(color).setTitle(i === 0 ? 'Answers' : 'Answers (continued)').setDescription(text));
+
+  // A message holds up to 10 cards and 6000 characters, so long answers go over several messages.
+  const groups = [];
+  let group = [card];
+  let size = (card.data.description ?? '').length;
+  for (const answerCard of answerCards) {
+    const length = answerCard.data.description.length;
+    if (group.length >= 10 || size + length > 5500) {
+      groups.push(group);
+      group = [];
+      size = 0;
+    }
+    group.push(answerCard);
+    size += length;
+  }
+  groups.push(group);
 
   const pings = item.pingStaff ? staffRoles.map((role) => `${role}`) : [];
-  await channel.send({
-    content: [`${user}`, ...pings].join(' '),
-    allowedMentions: { users: [user.id], roles: item.pingStaff ? staffRoles.map((role) => role.id) : [] },
-    embeds: [card],
-    components: [
-      new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId('pb:ticket:close').setLabel('Close ticket').setEmoji('🔒').setStyle(ButtonStyle.Danger),
-      ),
-    ],
-  });
+  for (const [i, cards] of groups.entries()) {
+    const last = i === groups.length - 1;
+    await channel.send({
+      content: i === 0 ? [`${user}`, ...pings].join(' ') : undefined,
+      allowedMentions: i === 0 ? { users: [user.id], roles: item.pingStaff ? staffRoles.map((role) => role.id) : [] } : { parse: [] },
+      embeds: cards,
+      components: last ? [new ActionRowBuilder().addComponents(closeButton(panel))] : [],
+    });
+  }
+
+  // Files uploaded in the form are copied into the ticket so they don't expire.
+  const files = answers.flatMap((a) => a.files ?? []);
+  for (let i = 0; i < files.length; i += 10) {
+    const batch = files.slice(i, i + 10);
+    await channel
+      .send({ content: i === 0 ? '📎 Files from the form:' : undefined, files: batch.map((f) => ({ attachment: f.url, name: f.name })) })
+      .catch(() => channel.send({ content: `📎 Files from the form:\n${batch.map((f) => f.url).join('\n')}`.slice(0, 2000) }).catch(() => {}));
+  }
 
   await interaction.editReply(`🎟️ Your ticket is open: ${channel}`);
 }
@@ -285,7 +370,7 @@ async function onClose(interaction) {
 
   await interaction.reply(`🔒 Closing this ticket. ${member} closed it.`);
 
-  const transcript = await buildTranscript(channel).catch(() => '(The transcript could not be saved.)');
+  const messages = await buildTranscript(channel).catch(() => '(The transcript could not be saved.)');
   const name = channel.name;
   const summary = embed(COLORS.warning)
     .setTitle(`Ticket #${ticket.number} closed`)
@@ -298,12 +383,13 @@ async function onClose(interaction) {
   const { panel, item } = optionFor(guild.id, ticket);
   if (item) summary.addFields({ name: 'Type', value: truncate(`${item.emoji ? `${item.emoji} ` : ''}${item.label || panel.name}`, 1024), inline: true });
   const answers = ticket.answers ?? [{ question: T.question, answer: ticket.reason || 'No reason given' }];
-  for (const { question, answer } of answers.slice(0, 5)) summary.addFields({ name: truncate(question, 256), value: truncate(answer || '—', 1024) });
+  const answerCards = questions.answerBlocks(answers, 3000).slice(0, 1).map((text) => embed(COLORS.warning).setDescription(text));
+  const header = answers.length ? `${answers.map(({ question, answer }) => `${question}\n> ${String(answer || '—').replace(/\n/g, '\n> ')}`).join('\n\n')}\n\n${'-'.repeat(40)}\n\n` : '';
 
   const transcriptChannel = findChannel(guild, panel?.transcriptChannel || T.transcriptChannel);
   if (transcriptChannel) {
     await transcriptChannel
-      .send({ embeds: [summary], files: [new AttachmentBuilder(Buffer.from(transcript, 'utf8'), { name: `${name}.txt` })] })
+      .send({ embeds: [summary, ...answerCards], files: [new AttachmentBuilder(Buffer.from(header + messages, 'utf8'), { name: `${name}.txt` })] })
       .catch(() => sendLog(guild, summary));
   } else {
     await sendLog(guild, summary);
@@ -314,4 +400,4 @@ async function onClose(interaction) {
   setTimeout(() => channel.delete(`Ticket closed by ${member.user.tag}`).catch(() => {}), 5000);
 }
 
-module.exports = { panelMessage, onOpen, onSubmit, onClose, onPanelOpen, onPanelSubmit, createTicket, buildTranscript, isStaff, state, channelSlug };
+module.exports = { panelMessage, onOpen, onSubmit, onClose, onPanelOpen, onPanelSubmit, onPanelNext, createTicket, closeButton, pending, buildTranscript, isStaff, state, channelSlug };

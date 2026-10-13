@@ -12,9 +12,8 @@ const settings = require('./settings');
 const { embed, hexColor, ephemeral, truncate } = require('./ui');
 const { findRole, findCategory, findChannel } = require('./resolve');
 
-const MAX_PANELS = 200;
-const MAX_ITEMS = 25; // Discord allows 25 buttons (5 rows of 5) or 25 dropdown choices per message
-const MAX_QUESTIONS = 5; // Discord forms hold up to 5 boxes
+const MAX_PANELS = Infinity; // no limit
+const MAX_ITEMS = Infinity; // no limit: big panels continue in extra messages
 
 const STYLES = {
   blurple: { name: 'Blurple', value: ButtonStyle.Primary },
@@ -43,7 +42,7 @@ function seedFromOldSettings(guildId, panels) {
   Object.assign(panel.items[0], {
     category: T.category ?? '',
     staffRoles: [...(T.staffRoles ?? [])],
-    questions: [T.question],
+    questions: [{ text: T.question, type: 'long', required: true }],
   });
   panels.items[panel.id] = panel;
   panels.legacyTicketPanel = panel.id; // the "Create ticket" button that's already posted opens this one
@@ -54,7 +53,8 @@ function blankItem(type) {
   return type === 'tickets'
     ? {
         label: 'Create ticket', emoji: '🎟️', style: 'blurple', description: '',
-        category: '', staffRoles: [], questions: ['What do you need help with?'],
+        category: '', staffRoles: [], color: '',
+        questions: [{ text: 'What do you need help with?', type: 'long', required: true, help: '', placeholder: '', choices: [] }],
         namePrefix: 'ticket', welcome: 'Thanks for opening a ticket! Staff will be with you shortly.', pingStaff: false,
       }
     : { roleId: '', label: '', emoji: '', style: 'grey', description: '' };
@@ -75,7 +75,10 @@ function blank(type, name) {
     placeholder: type === 'tickets' ? 'Pick a ticket type' : 'Pick your roles',
     listRoles: true, // roles panels: list the roles under the description
     exclusive: false, // roles panels: members can only have one role from this panel
-    maxOpen: 1, // tickets panels: open tickets one member can have from this panel
+    maxOpen: 1, // tickets panels: open tickets one member can have from this panel (0 = no limit)
+    closeLabel: 'Close ticket', // tickets panels: the button inside each ticket
+    closeEmoji: '🔒',
+    closeStyle: 'red',
     transcriptChannel: '', // tickets panels: blank = the server's default
     items: type === 'tickets' ? [blankItem('tickets')] : [],
     channelId: null,
@@ -115,6 +118,7 @@ function duplicate(guildId, id) {
   copy.name = `${source.name} (copy)`;
   copy.channelId = null;
   copy.messageId = null;
+  copy.messageIds = [];
   panels.items[copy.id] = copy;
   db.save();
   return copy;
@@ -131,40 +135,65 @@ function itemLabel(guild, panel, item) {
 function usableItems(guild, panel) {
   return panel.items
     .map((item, index) => ({ item, index }))
-    .filter(({ item }) => panel.type !== 'roles' || guild.roles.cache.has(item.roleId))
-    .slice(0, MAX_ITEMS);
+    .filter(({ item }) => panel.type !== 'roles' || guild.roles.cache.has(item.roleId));
 }
 
-/** Builds the Discord message for a panel. */
-function message(guild, panel) {
-  const card = embed(hexColor(panel.color) ?? undefined);
+/** Splits long text into pieces that fit in one card, breaking at line ends where possible. */
+function splitText(text, max = 4000) {
+  const out = [];
+  let rest = text;
+  while (rest.length > max) {
+    let cut = rest.lastIndexOf('\n', max);
+    if (cut < max / 2) cut = max;
+    out.push(rest.slice(0, cut));
+    rest = rest.slice(cut).replace(/^\n/, '');
+  }
+  if (rest) out.push(rest);
+  return out;
+}
+
+/**
+ * Builds the Discord message(s) for a panel. Discord fits 25 buttons (or 5
+ * dropdowns of 25) and about 6000 characters in one message, so a bigger panel
+ * carries on in extra messages straight after the first.
+ */
+function messages(guild, panel) {
+  const color = hexColor(panel.color) ?? undefined;
   const items = usableItems(guild, panel);
   let description = panel.description ?? '';
   if (panel.type === 'roles' && panel.listRoles && items.length) {
     const lines = items.map(({ item }) => `${item.emoji ? `${item.emoji} ` : ''}<@&${item.roleId}>${item.description ? ` — ${item.description}` : ''}`);
     description = [description, lines.join('\n')].filter(Boolean).join('\n\n');
   }
-  if (panel.title) card.setTitle(truncate(panel.title, 256));
-  if (description) card.setDescription(truncate(description, 4096));
-  if (!panel.title && !description) card.setDescription(panel.name);
-  if (panel.image) card.setImage(panel.image);
-  if (panel.thumbnail) card.setThumbnail(panel.thumbnail);
-  if (panel.footer) card.setFooter({ text: truncate(panel.footer, 2048) });
+  const pieces = description ? splitText(description) : [];
+  const cards = (pieces.length ? pieces : [null]).map((text, i) => {
+    const card = embed(color);
+    if (i === 0 && panel.title) card.setTitle(truncate(panel.title, 256));
+    if (text) card.setDescription(text);
+    return card;
+  });
+  if (!panel.title && !description) cards[0].setDescription(panel.name);
+  if (panel.thumbnail) cards[0].setThumbnail(panel.thumbnail);
+  if (panel.image) cards.at(-1).setImage(panel.image);
+  if (panel.footer) cards.at(-1).setFooter({ text: truncate(panel.footer, 2048) });
 
   const rows = [];
   if (items.length && panel.mode === 'dropdown') {
-    const menu = new StringSelectMenuBuilder()
-      .setCustomId(`pb:pnl:${panel.id}:sel`)
-      .setPlaceholder(truncate(panel.placeholder || 'Pick one', 150))
-      .setMinValues(1)
-      .setMaxValues(panel.type === 'roles' && !panel.exclusive ? items.length : 1);
-    for (const { item, index } of items) {
-      const option = new StringSelectMenuOptionBuilder().setLabel(truncate(itemLabel(guild, panel, item), 100)).setValue(String(index));
-      if (item.description) option.setDescription(truncate(item.description, 100));
-      if (item.emoji) option.setEmoji(item.emoji);
-      menu.addOptions(option);
+    for (let start = 0, n = 0; start < items.length; start += 25, n++) {
+      const chunk = items.slice(start, start + 25);
+      const menu = new StringSelectMenuBuilder()
+        .setCustomId(`pb:pnl:${panel.id}:sel:${n}`)
+        .setPlaceholder(truncate(`${panel.placeholder || 'Pick one'}${items.length > 25 ? ` (${start + 1}–${start + chunk.length})` : ''}`, 150))
+        .setMinValues(1)
+        .setMaxValues(panel.type === 'roles' && !panel.exclusive ? chunk.length : 1);
+      for (const { item, index } of chunk) {
+        const option = new StringSelectMenuOptionBuilder().setLabel(truncate(itemLabel(guild, panel, item), 100)).setValue(String(index));
+        if (item.description) option.setDescription(truncate(item.description, 100));
+        if (item.emoji) option.setEmoji(item.emoji);
+        menu.addOptions(option);
+      }
+      rows.push(new ActionRowBuilder().addComponents(menu));
     }
-    rows.push(new ActionRowBuilder().addComponents(menu));
   } else if (items.length) {
     for (let start = 0; start < items.length; start += 5) {
       const row = new ActionRowBuilder();
@@ -179,7 +208,39 @@ function message(guild, panel) {
       rows.push(row);
     }
   }
-  return { embeds: [card], components: rows };
+
+  // Cards first (10 per message, ~5500 characters), then the buttons, 5 rows per message.
+  const bodies = [];
+  let current = { embeds: [], components: [] };
+  let size = 0;
+  for (const card of cards) {
+    const length = (card.data.description ?? '').length + (card.data.title ?? '').length;
+    if (current.embeds.length && (current.embeds.length >= 10 || size + length > 5500)) {
+      bodies.push(current);
+      current = { embeds: [], components: [] };
+      size = 0;
+    }
+    current.embeds.push(card);
+    size += length;
+  }
+  for (const row of rows) {
+    if (current.components.length >= 5) {
+      bodies.push(current);
+      current = { embeds: [], components: [] };
+    }
+    current.components.push(row);
+  }
+  bodies.push(current);
+  return bodies;
+}
+
+/** The first message of a panel (handy for previews). */
+const message = (guild, panel) => messages(guild, panel)[0];
+
+/** Message IDs of where the panel is posted (older saves had just one). */
+function postedIds(panel) {
+  if (Array.isArray(panel.messageIds) && panel.messageIds.length) return panel.messageIds;
+  return panel.messageId ? [panel.messageId] : [];
 }
 
 /** Posts the panel, or updates it in place if it's already posted in that channel. */
@@ -187,24 +248,40 @@ async function post(guild, panel, channelId = panel.channelId) {
   const channel = guild.channels.cache.get(channelId);
   if (!channel?.isTextBased?.()) return { ok: false, text: 'Pick a text channel to post the panel in.' };
   if (panel.type === 'roles' && !usableItems(guild, panel).length) return { ok: false, text: 'Add at least one role first.' };
-  const body = message(guild, panel);
-  if (panel.messageId && panel.channelId === channel.id) {
-    const existing = await channel.messages.fetch(panel.messageId).catch(() => null);
-    if (existing) {
-      await existing.edit(body);
-      return { ok: true, text: `Updated the panel in #${channel.name}.` };
+  const bodies = messages(guild, panel);
+  const ids = panel.channelId === channel.id ? postedIds(panel) : [];
+  const existing = [];
+  for (const id of ids) existing.push(await channel.messages.fetch(id).catch(() => null));
+
+  // Update in place only if the first message is still there; otherwise post fresh.
+  if (existing[0]) {
+    const kept = [];
+    for (const [i, body] of bodies.entries()) {
+      if (existing[i]) {
+        await existing[i].edit(body);
+        kept.push(existing[i].id);
+      } else {
+        kept.push((await channel.send(body)).id);
+      }
     }
+    for (const extra of existing.slice(bodies.length)) await extra?.delete?.().catch(() => {});
+    panel.messageIds = kept;
+    panel.messageId = kept[0];
+    db.save();
+    return { ok: true, text: `Updated the panel in #${channel.name}.` };
   }
-  const sent = await channel.send(body);
+  const sent = [];
+  for (const body of bodies) sent.push((await channel.send(body)).id);
   panel.channelId = channel.id;
-  panel.messageId = sent.id;
+  panel.messageIds = sent;
+  panel.messageId = sent[0];
   db.save();
-  return { ok: true, text: `Posted the panel in #${channel.name}.` };
+  return { ok: true, text: `Posted the panel in #${channel.name}${sent.length > 1 ? ` (${sent.length} messages)` : ''}.` };
 }
 
 /** After a save: if the panel is already posted, refresh it. Never throws. */
 async function refresh(guild, panel) {
-  if (!panel.messageId) return null;
+  if (!postedIds(panel).length) return null;
   return post(guild, panel).catch((error) => ({ ok: false, text: `Saved, but the posted panel couldn't be updated (${error.message}).` }));
 }
 
@@ -263,13 +340,14 @@ async function pickRoles(interaction, panel, indexes) {
   return interaction.reply(ephemeral(lines.join('\n') || 'Nothing changed.'));
 }
 
-/** Handles every panel button, dropdown and form: custom ID "pb:pnl:<panel>:<what>:<index>". */
-async function onInteraction(interaction, panelId, what, index) {
+/** Handles every panel button, dropdown and form: custom ID "pb:pnl:<panel>:<what>:<index>[:<page>]". */
+async function onInteraction(interaction, panelId, what, index, page) {
   const tickets = require('./tickets'); // required here to avoid a loop between the two files
   const panel = get(interaction.guildId, panelId);
   if (!panel) return interaction.reply(ephemeral('This panel was deleted. Ask a moderator to post a new one.'));
 
-  if (what === 'form') return tickets.onPanelSubmit(interaction, panel, Number(index));
+  if (what === 'form') return tickets.onPanelSubmit(interaction, panel, Number(index), Number(page ?? 0));
+  if (what === 'next') return tickets.onPanelNext(interaction, panel, Number(index), Number(page));
 
   let indexes;
   if (what === 'sel') indexes = (interaction.values ?? []).map(Number);
@@ -304,6 +382,6 @@ function problems(guild, panel) {
 }
 
 module.exports = {
-  STYLES, MAX_ITEMS, MAX_PANELS, MAX_QUESTIONS,
-  store, list, get, create, remove, duplicate, blankItem, message, post, refresh, onInteraction, problems, itemLabel,
+  STYLES, MAX_ITEMS, MAX_PANELS,
+  store, list, get, create, remove, duplicate, blankItem, message, messages, splitText, post, refresh, onInteraction, problems, itemLabel,
 };

@@ -44,6 +44,9 @@ module.exports = {
     console.log(`Registered ${commands.length} slash commands.`);
 
     appearance.applyPresence(client);
+    console.log(require('../lib/questions').MODERN
+      ? 'Ticket forms: all question types available.'
+      : 'Ticket forms: this discord.js is too old for dropdown/tick box/upload questions, so they show as text boxes. Run "npm update" to get them.');
     reminders.start(client);
     schedules.start(client);
     if (!client.dashboard) client.dashboard = dashboard.start(client);

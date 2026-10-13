@@ -6,7 +6,7 @@ const { addDays } = require('./when');
 const { embed } = require('./ui');
 
 const CHECK_EVERY_MS = 30_000;
-const MAX_PER_SERVER = 25;
+const MAX_PER_SERVER = Infinity; // no limit
 const REPEATS = { none: 0, daily: 1, weekly: 7 };
 let timer = null;
 
