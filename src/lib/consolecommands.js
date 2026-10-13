@@ -10,6 +10,7 @@ const owner = require('./owner');
 const COMMANDS = {
   help: 'lists these commands',
   'backup-link': 'DMs the bot owner a one-time dashboard login link (the link itself is never printed here)',
+  'backup-link here': 'prints a one-time owner login link right here instead (for when Discord is blocked)',
 };
 
 async function run(client, line) {
@@ -19,7 +20,7 @@ async function run(client, line) {
     for (const [name, what] of Object.entries(COMMANDS)) console.log(`  ${name} - ${what}`);
     return;
   }
-  if (command === 'backup-link') {
+  if (command === 'backup-link' || command === 'backup-link here') {
     const id = owner.ownerId(client);
     if (!id || !client.isReady?.()) return console.log('Pixel Bot is still starting up. Try again in a few seconds.');
     const { settingsFromEnv } = require('../dashboard/server');
@@ -28,6 +29,11 @@ async function run(client, line) {
     const user = await client.users.fetch(id);
     const token = links.create({ id: user.id, username: user.globalName || user.username, avatar: null });
     const link = `${config.aliases?.[0] ?? config.base}/r/${token}`;
+    if (command === 'backup-link here') {
+      owner.audit({ userId: user.id, username: user.username, guildId: null, what: 'Backup login link shown in the hosting console', ok: true, text: '' });
+      console.log(`One-time login link for ${user.username} (works once, keep it private): ${link}`);
+      return;
+    }
     try {
       await user.send(`🔑 **Your one-time Pixel Bot dashboard login link**\n${link}\n\nIt works once and logs you in as you. Keep it private. If it leaks, cancel it on the dashboard under 🔑 → "Cancel all my backup links".`);
       owner.audit({ userId: user.id, username: user.username, guildId: null, what: 'Backup login link sent from the hosting console', ok: true, text: '' });
