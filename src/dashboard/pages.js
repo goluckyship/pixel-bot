@@ -95,6 +95,57 @@ function linkMade(user, link) {
   });
 }
 
+/** The Code page: every file, grouped by folder, with line counts and a search box. */
+function sourceList(user, { files, totalLines }, version, query, hits) {
+  const searchBox = `<form method="get" action="/source"><input name="q" value="${esc(query ?? '')}" placeholder="Search all the code…" style="width:100%"></form>`;
+  let body;
+  if (query) {
+    body = hits.length
+      ? `<p class="sub">${hits.length === 300 ? 'First 300' : hits.length} match${hits.length === 1 ? '' : 'es'} for <b>${esc(query)}</b></p><div class="files">${hits.map((h) => `<a href="/source/view?p=${encodeURIComponent(h.path)}#L${h.line}"><span><b>${esc(h.path)}:${h.line}</b> ${esc(h.text.trim())}</span></a>`).join('')}</div>`
+      : `<p class="sub">Nothing matches <b>${esc(query)}</b>.</p>`;
+    body += '<p><a class="linky" href="/source">All files</a></p>';
+  } else {
+    let lastDir = null;
+    const rows = files.map((f) => {
+      const dir = f.path.includes('/') ? f.path.slice(0, f.path.lastIndexOf('/')) : '(top folder)';
+      const head = dir !== lastDir ? `<div class="dir">📁 ${esc(dir)}</div>` : '';
+      lastDir = dir;
+      return `${head}<a href="/source/view?p=${encodeURIComponent(f.path)}"><span>📄 ${esc(f.path.split('/').pop())}</span><span class="muted">${f.lines.toLocaleString('en-US')} lines</span></a>`;
+    }).join('');
+    body = `<div class="files">${rows}</div>`;
+  }
+  const updated = version.updates[0] ? new Date(version.updates[0].when).toLocaleString('en-US', { timeZone: 'America/Chicago', dateStyle: 'medium', timeStyle: 'short' }) : null;
+  return page({
+    title: 'Code',
+    user,
+    body: `<div class="card"><h1>📜 Pixel Bot's code</h1>
+<p class="sub"><b>${files.length}</b> files · <b>${totalLines.toLocaleString('en-US')}</b> lines${version.hash ? ` · version <b>${esc(version.hash)}</b>` : ''}${updated ? ` · updated ${esc(updated)} (Chicago time)` : ''}</p>
+<p class="help">This is the exact code running right now, read straight from the bot, so it updates by itself whenever the bot gets an update. Secret settings (.env) and saved data are never shown.</p>
+${searchBox}${body}</div>`,
+  });
+}
+
+/** One file, with line numbers. Click a number to get a link to that line. */
+function sourceFile(user, rel, text) {
+  const lines = text.split('\n');
+  let inBlock = false;
+  const rows = lines.map((line, i) => {
+    const t = line.trim();
+    const isComment = inBlock || t.startsWith('//') || t.startsWith('/*') || t.startsWith('*') || t.startsWith('#') || /^rem\b/i.test(t);
+    if (t.startsWith('/*') && !t.includes('*/')) inBlock = true;
+    else if (inBlock && t.includes('*/')) inBlock = false;
+    return `<tr id="L${i + 1}"><td class="n"><a href="#L${i + 1}">${i + 1}</a></td><td${isComment ? ' class="c"' : ''}>${esc(line) || ' '}</td></tr>`;
+  }).join('');
+  const parts = rel.split('/');
+  return page({
+    title: parts.at(-1),
+    user,
+    body: `<p><a class="linky" href="/source">← All files</a></p>
+<div class="card"><div class="crumbs">${parts.map(esc).join(' / ')}</div><p class="muted">${lines.length.toLocaleString('en-US')} lines</p>
+<div class="srcbox"><table class="src">${rows}</table></div></div>`,
+  });
+}
+
 function serverList(user, guilds) {
   const items = guilds.length
     ? guilds.map((g) => `<a href="/g/${esc(g.id)}">${g.icon ? `<img src="${esc(g.icon)}" alt="">` : `<span class="noicon">${esc(g.name[0])}</span>`}<span><b>${esc(g.name)}</b><br><span class="muted">${g.memberCount} members</span></span></a>`).join('')
@@ -536,4 +587,4 @@ ${fold({
   return page({ title: panel.name, user, body });
 }
 
-module.exports = { landing, codeLogin, linkLogin, account, linkMade, serverList, guildPage, panelPage, errorPage, roleOptions, channelOptions };
+module.exports = { landing, sourceList, sourceFile, codeLogin, linkLogin, account, linkMade, serverList, guildPage, panelPage, errorPage, roleOptions, channelOptions };

@@ -11,6 +11,7 @@ const { PermissionFlagsBits } = require('discord.js');
 const auth = require('./auth');
 const codes = require('../lib/logincodes');
 const links = require('../lib/loginlinks');
+const source = require('./source');
 const pages = require('./pages');
 const { apply, applyPanel } = require('./actions');
 const panels = require('../lib/panels');
@@ -239,6 +240,25 @@ function createHandler(client, config) {
           owner.audit({ userId: user.id, username: user.username, guildId: null, what: 'Made a backup login link', ok: true, text: '' });
           return send(res, 200, pages.linkMade(user, `${config.aliases?.[0] ?? site.base}/r/${token}`));
         }
+      }
+
+      // The Code page (bot owner only): Pixel Bot's own files, read live.
+      if (req.method === 'GET' && (url.pathname === '/source' || url.pathname === '/source/view')) {
+        if (!user.isOwner) {
+          const e = pages.errorPage(user, 'Only the bot owner can see the code page.', 403);
+          return send(res, e.status, e.html);
+        }
+        if (url.pathname === '/source') {
+          const q = url.searchParams.get('q')?.slice(0, 100) ?? '';
+          return send(res, 200, pages.sourceList(user, source.list(), source.version(), q, q ? source.search(q) : []));
+        }
+        const rel = url.searchParams.get('p') ?? '';
+        const file = source.read(rel);
+        if (!file) {
+          const e = pages.errorPage(user, 'That file isn\'t part of the code (or was removed).', 404);
+          return send(res, e.status, e.html);
+        }
+        return send(res, 200, pages.sourceFile(user, rel, file.text));
       }
 
       // Discord pictures (avatars, server icons) fetched by the bot for people whose

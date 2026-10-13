@@ -51,6 +51,7 @@ textarea{min-height:100px;resize:vertical}
 .toggle input:focus-visible{outline:3px solid var(--brand);outline-offset:2px}
 
 button,.button{display:inline-flex;align-items:center;gap:8px;margin-top:16px;padding:11px 22px;border:0;border-radius:999px;background:var(--brand);color:var(--brand-text);font:600 15px var(--head);cursor:pointer;text-decoration:none;box-shadow:0 4px 0 color-mix(in srgb,var(--brand) 60%,#000);transition:transform .1s,box-shadow .1s}
+table.src{width:100%;border-collapse:collapse;font:13px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}table.src td{padding:0 10px;vertical-align:top;white-space:pre-wrap;word-break:break-word}table.src td.n{width:1%;text-align:right;color:var(--muted);user-select:none;white-space:nowrap;border-right:2px solid var(--line)}table.src tr:target{background:color-mix(in srgb,var(--brand) 22%,transparent)}table.src .c{color:var(--muted);font-style:italic}.srcbox{overflow-x:auto;border:2px solid var(--line);border-radius:calc(var(--r) * .7);background:var(--card);padding:10px 0}.files a{display:flex;justify-content:space-between;gap:10px;padding:6px 10px;border-radius:10px;text-decoration:none;color:inherit;font:14px ui-monospace,Menlo,Consolas,monospace}.files a:hover{background:color-mix(in srgb,var(--brand) 12%,transparent)}.files .dir{margin:14px 0 4px;font-weight:700}.crumbs{font:600 15px ui-monospace,Menlo,Consolas,monospace;word-break:break-all}
 a.linky{display:inline-block;margin-top:14px;color:var(--brand);font-weight:700}.code{font:600 clamp(40px,12vw,64px) var(--head);letter-spacing:.12em;margin:18px 0 6px;padding:14px 26px;border-radius:22px;background:color-mix(in srgb,var(--brand) 12%,transparent);display:inline-block}.steps{text-align:left;display:inline-block;margin:10px auto 0;line-height:1.8}
 button:hover,.button:hover{transform:translateY(-1px);box-shadow:0 5px 0 color-mix(in srgb,var(--brand) 60%,#000)}
 button:active,.button:active{transform:translateY(3px);box-shadow:0 1px 0 color-mix(in srgb,var(--brand) 60%,#000)}
@@ -258,7 +259,7 @@ function page({ title, user, body, head = '' }) {
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito:wght@400;600;700&display=swap">
 <style>${CSS}${mode}${themeCss(theme)}</style></head><body>
-<header><a class="brand" href="/">${pixelHeart(28)}<b>${esc(name)}</b></a>${user ? `<span class="who">${user.avatar ? `<img src="${esc(user.avatar)}" alt="">` : ''}${user.isOwner ? '<span class="crown">👑 Owner</span>' : ''}${esc(user.username)} <a href="/account" title="One-time backup login links">🔑</a> <a href="/logout">Log out</a></span>` : ''}</header>
+<header><a class="brand" href="/">${pixelHeart(28)}<b>${esc(name)}</b></a>${user ? `<span class="who">${user.avatar ? `<img src="${esc(user.avatar)}" alt="">` : ''}${user.isOwner ? '<span class="crown">👑 Owner</span>' : ''}${user.isOwner ? '<a href="/source" title="Pixel Bot\'s code">📜</a> ' : ''}${esc(user.username)} <a href="/account" title="One-time backup login links">🔑</a> <a href="/logout">Log out</a></span>` : ''}</header>
 <main>${body}</main></body></html>`;
 }
 
