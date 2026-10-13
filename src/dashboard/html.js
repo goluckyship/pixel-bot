@@ -258,7 +258,7 @@ function page({ title, user, body, head = '' }) {
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito:wght@400;600;700&display=swap">
 <style>${CSS}${mode}${themeCss(theme)}</style></head><body>
-<header><a class="brand" href="/">${pixelHeart(28)}<b>${esc(name)}</b></a>${user ? `<span class="who">${user.avatar ? `<img src="${esc(user.avatar)}" alt="">` : ''}${user.isOwner ? '<span class="crown">👑 Owner</span>' : ''}${esc(user.username)} <a href="/logout">Log out</a></span>` : ''}</header>
+<header><a class="brand" href="/">${pixelHeart(28)}<b>${esc(name)}</b></a>${user ? `<span class="who">${user.avatar ? `<img src="${esc(user.avatar)}" alt="">` : ''}${user.isOwner ? '<span class="crown">👑 Owner</span>' : ''}${esc(user.username)} <a href="/account" title="One-time backup login links">🔑</a> <a href="/logout">Log out</a></span>` : ''}</header>
 <main>${body}</main></body></html>`;
 }
 

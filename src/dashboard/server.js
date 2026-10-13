@@ -10,6 +10,7 @@ const crypto = require('node:crypto');
 const { PermissionFlagsBits } = require('discord.js');
 const auth = require('./auth');
 const codes = require('../lib/logincodes');
+const links = require('../lib/loginlinks');
 const pages = require('./pages');
 const { apply, applyPanel } = require('./actions');
 const panels = require('../lib/panels');
@@ -144,6 +145,31 @@ function createHandler(client, config) {
         });
       }
 
+      // One-time backup login links: /r/<secret>. A button press (not just opening
+      // the link) uses it, so chat apps that preview links can't burn it.
+      const linkMatch = /^\/r\/([A-Za-z0-9_-]{1,100})$/.exec(url.pathname);
+      if (linkMatch) {
+        const token = linkMatch[1];
+        if (!links.valid(token)) {
+          const e = pages.errorPage(null, 'That backup login link was already used, cancelled or has expired. Each link works once.', 404);
+          return send(res, e.status, e.html);
+        }
+        if (req.method === 'GET') return send(res, 200, pages.linkLogin(token));
+        if (req.method === 'POST') {
+          const saved = links.use(token);
+          if (!saved) return redirect(res, url.pathname);
+          const fresh = await client.users?.fetch?.(saved.id).catch(() => null);
+          const profile = fresh
+            ? { id: fresh.id, username: fresh.globalName || fresh.username, avatar: fresh.avatar ? `https://cdn.discordapp.com/avatars/${fresh.id}/${fresh.avatar}.png?size=64` : null }
+            : saved;
+          owner.audit({ userId: profile.id, username: profile.username, guildId: null, what: 'Logged in with a backup link', ok: true, text: '' });
+          console.log(`Dashboard: ${profile.username} logged in with a one-time backup link`);
+          return redirect(res, '/account?used=1', {
+            'Set-Cookie': auth.cookie('pb_session', auth.createSession(profile), { maxAge: auth.SESSION_DAYS * 86400, secure: site.secure }),
+          });
+        }
+      }
+
       // Log in with a code (for computers where discord.com is blocked).
       if (req.method === 'GET' && url.pathname === '/code') {
         const secret = auth.unsign(auth.parseCookies(req.headers.cookie).pb_code);
@@ -183,6 +209,34 @@ function createHandler(client, config) {
       if (!user) {
         if (req.method === 'GET' && url.pathname === '/') return send(res, 200, pages.landing());
         return redirect(res, '/');
+      }
+
+      // Your account: make or cancel one-time backup login links.
+      if (url.pathname === '/account' || url.pathname === '/account/link' || url.pathname === '/account/revoke') {
+        let hasAccess = owner.isOwner(client, user.id);
+        for (const guild of client.guilds.cache.values()) if (!hasAccess && (await memberWithAccess(guild, user.id))) hasAccess = true;
+        if (req.method === 'GET' && url.pathname === '/account') {
+          return send(res, 200, pages.account(user, session.csrf, { hasAccess, count: links.countFor(user.id), max: links.PER_USER, used: url.searchParams.has('used') }));
+        }
+        if (req.method === 'POST') {
+          const form = parseForm(await readBody(req));
+          if (!auth.csrfOk(session, form.csrf)) {
+            const e = pages.errorPage(user, 'That form expired. Go back, refresh the page and try again.', 403);
+            return send(res, e.status, e.html);
+          }
+          if (url.pathname === '/account/revoke') {
+            links.revokeAll(user.id);
+            owner.audit({ userId: user.id, username: user.username, guildId: null, what: 'Cancelled backup login links', ok: true, text: '' });
+            return redirect(res, '/account');
+          }
+          if (!hasAccess) {
+            const e = pages.errorPage(user, 'Backup login links are only for people who can use the dashboard.', 403);
+            return send(res, e.status, e.html);
+          }
+          const token = links.create(user);
+          owner.audit({ userId: user.id, username: user.username, guildId: null, what: 'Made a backup login link', ok: true, text: '' });
+          return send(res, 200, pages.linkMade(user, `${config.aliases?.[0] ?? site.base}/r/${token}`));
+        }
       }
 
       if (req.method === 'GET' && url.pathname === '/') {

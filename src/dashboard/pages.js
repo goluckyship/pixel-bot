@@ -57,6 +57,44 @@ function codeLogin(code, minutesLeft) {
   });
 }
 
+/** Opening a backup link shows this first; the button is what logs you in. */
+function linkLogin(token) {
+  return page({
+    title: 'Backup login',
+    body: `<div class="hero">${pixelHeart(72, 'beat')}<h1>Backup login</h1>
+<p class="sub">This one-time link logs you in to the Pixel Bot dashboard. It stops working once you use it.</p>
+<form method="post" action="/r/${esc(token)}"><button type="submit">Log me in</button></form></div>`,
+  });
+}
+
+function account(user, csrf, { hasAccess, count, max, used }) {
+  const body = !hasAccess
+    ? '<p class="sub">Backup login links are only for people who can use the dashboard.</p>'
+    : `<p class="sub">A backup link logs you in once, even if Discord is blocked or you can't log in. Save it somewhere only you can see, like your notes app or a password manager.</p>
+<p class="help">It only logs you in as <b>you</b>. What you can change is still up to the normal dashboard access, so it never gives anyone extra access. You can have up to ${max}; making another cancels the oldest.</p>
+<p>You have <b>${count}</b> unused backup link${count === 1 ? '' : 's'}.</p>
+<form method="post" action="/account/link"><input type="hidden" name="csrf" value="${esc(csrf)}"><button type="submit">🔑 Make a one-time login link</button></form>
+${count ? `<form method="post" action="/account/revoke"><input type="hidden" name="csrf" value="${esc(csrf)}"><button type="submit" class="secondary">Cancel all my backup links</button></form>` : ''}`;
+  return page({
+    title: 'Backup login',
+    user,
+    body: `<div class="card">${used ? '<div class="flash ok">You\'re in! That backup link is used up now. Make a new one below if you want another spare.</div>' : ''}<h1>🔑 Backup login links</h1>${body}<p><a class="linky" href="/">Back to the dashboard</a></p></div>`,
+  });
+}
+
+/** Shown exactly once: the link itself is never saved anywhere. */
+function linkMade(user, link) {
+  return page({
+    title: 'Your backup link',
+    user,
+    body: `<div class="card"><h1>🔑 Your one-time login link</h1>
+<p class="sub">Copy it now and keep it somewhere private. This is the only time it will be shown.</p>
+<textarea readonly rows="3" style="width:100%;font:600 14px ui-monospace,monospace">${esc(link)}</textarea>
+<p class="help">Anyone who has this link can log in as you once, so don't post it anywhere. If it ever leaks, use "Cancel all my backup links".</p>
+<p><a class="linky" href="/account">Done</a></p></div>`,
+  });
+}
+
 function serverList(user, guilds) {
   const items = guilds.length
     ? guilds.map((g) => `<a href="/g/${esc(g.id)}">${g.icon ? `<img src="${esc(g.icon)}" alt="">` : `<span class="noicon">${esc(g.name[0])}</span>`}<span><b>${esc(g.name)}</b><br><span class="muted">${g.memberCount} members</span></span></a>`).join('')
@@ -498,4 +536,4 @@ ${fold({
   return page({ title: panel.name, user, body });
 }
 
-module.exports = { landing, codeLogin, serverList, guildPage, panelPage, errorPage, roleOptions, channelOptions };
+module.exports = { landing, codeLogin, linkLogin, account, linkMade, serverList, guildPage, panelPage, errorPage, roleOptions, channelOptions };
