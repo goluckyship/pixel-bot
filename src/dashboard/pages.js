@@ -121,6 +121,7 @@ function sourceList(user, { files, totalLines }, version, query, hits) {
     body: `<div class="card"><h1>📜 Pixel Bot's code</h1>
 <p class="sub"><b>${files.length}</b> files · <b>${totalLines.toLocaleString('en-US')}</b> lines${version.hash ? ` · version <b>${esc(version.hash)}</b>` : ''}${updated ? ` · updated ${esc(updated)} (Chicago time)` : ''}</p>
 <p class="help">This is the exact code running right now, read straight from the bot, so it updates by itself whenever the bot gets an update. Secret settings (.env) and saved data are never shown.</p>
+${version.changes?.length && !query ? `<details class="more" style="margin:10px 0"><summary>Latest changes</summary><div class="files">${version.changes.map((c) => `<div style="padding:5px 10px"><b>${esc(c.hash)}</b> <span class="muted">${esc(new Date(c.when).toLocaleString('en-US', { timeZone: 'America/Chicago', dateStyle: 'medium', timeStyle: 'short' }))}</span><br>${esc(c.text)}</div>`).join('')}</div></details>` : ''}
 ${searchBox}${body}</div>`,
   });
 }
@@ -149,7 +150,7 @@ function arcadeRooms(user, live) {
   return page({
     title: 'Arcade',
     user,
-    body: `<div class="hero" style="padding-bottom:8px">${pixelBot(80, 'beat')}<h1>Pixel Arcade</h1><p class="sub">Tic-Tac-Toe, Connect Four, Trivia Party and Reaction Race. Play right here in your browser, no Discord needed.</p>
+    body: `<div class="hero" style="padding-bottom:8px">${pixelBot(80, 'beat')}<h1>Pixel Arcade</h1><p class="sub">30 games: board games, party games, word games and more, all playable against Pixel Bot. Play right here in your browser, no Discord needed.</p>
 <div class="row" style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap"><a class="button" href="/arcade/play?room=MAIN">${pxIcon('star')} Join the main room</a><a class="button secondary" href="/arcade/new">${pxIcon('lock')} Make a private room</a></div></div>
 <div class="card"><h2>Join with a code</h2><form method="get" action="/arcade/play" style="display:flex;gap:10px;flex-wrap:wrap"><input name="room" placeholder="Room code, like K7P2Q" maxlength="8" style="flex:1 1 200px;text-transform:uppercase" required><button type="submit" style="margin-top:0">Join</button></form>
 <p class="help">Friends need to log in to this dashboard too (Discord login, a /login code, or a backup link). Anyone logged in can play, even without dashboard access to a server.</p></div>

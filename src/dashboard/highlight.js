@@ -119,6 +119,11 @@ function tokensLines(src, lang) {
     } else if (lang === 'bat') {
       if (/^(rem\b|::)/i.test(t)) out.push(['c', line]);
       else out.push(...line.split(/(\b(?:echo|set|if|else|goto|call|exit|not|exist|errorlevel|start|cd|pause|setlocal|endlocal|for|do|in)\b|%[^%\s]+%|"[^"]*"|^\s*:\w+)/i).map((part) => [/^"/.test(part) ? 's' : /^%/.test(part) ? 'n' : /^\s*:\w+$/.test(part) ? 'f' : /^[a-z]+$/i.test(part) && part.length > 1 && /^(echo|set|if|else|goto|call|exit|not|exist|errorlevel|start|cd|pause|setlocal|endlocal|for|do|in)$/i.test(part) ? 'kw' : '', part]));
+    } else if (lang === 'css') {
+      out.push(...line.split(/(\/\*.*?\*\/|"[^"]*"|'[^']*'|#[0-9a-fA-F]{3,8}\b|-?\d*\.?\d+(?:px|%|em|rem|s|ms|vh|vw|deg|fr)?\b|[\w-]+(?=\s*:(?!:))|@[\w-]+|!important)/).map((part) => [
+        /^\/\*/.test(part) ? 'c' : /^["']/.test(part) ? 's' : /^#[0-9a-f]{3,8}$/i.test(part) || /^-?\d*\.?\d/.test(part) ? 'n' : /^@|^!important$/.test(part) ? 'kw' : /^[\w-]+$/.test(part) && /^\s*:/.test(line.slice(line.indexOf(part) + part.length)) ? 'k' : '', part]));
+    } else if (lang === 'markup') {
+      out.push(...line.split(/(<!--.*?-->|<\/?[\w:-]+|\/?>|[\w:-]+(?==)|"[^"]*")/).map((part) => [/^<!--/.test(part) ? 'c' : /^<\/?[\w]/.test(part) || /^\/?>$/.test(part) ? 'kw' : /^"/.test(part) ? 's' : /^[\w:-]+$/.test(part) ? 'k' : '', part]));
     } else if (/^#/.test(t)) {
       out.push(['c', line]);
     } else {
@@ -129,7 +134,7 @@ function tokensLines(src, lang) {
   return out;
 }
 
-const langOf = (file) => (/\.(js|json)$/i.test(file) ? 'js' : /\.md$/i.test(file) ? 'md' : /\.bat$/i.test(file) ? 'bat' : 'text');
+const langOf = (file) => (/\.(js|json)$/i.test(file) ? 'js' : /\.md$/i.test(file) ? 'md' : /\.bat$/i.test(file) ? 'bat' : /\.css$/i.test(file) ? 'css' : /\.(svg|html)$/i.test(file) ? 'markup' : 'text');
 
 /** HTML for each line, with colour spans closed and reopened at line breaks. */
 function highlight(text, file) {

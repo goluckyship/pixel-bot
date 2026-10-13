@@ -41,13 +41,15 @@
   }
 
   async function act(body) {
-    if (busy) return;
+    if (busy) return false;
     busy = true;
     try {
       const next = await api('act', { method: 'POST', body: JSON.stringify({ room: roomId, ...body }) });
       take(next);
+      return true;
     } catch (e) {
       toast(e.message);
+      return false;
     } finally {
       busy = false;
     }
@@ -83,7 +85,7 @@
     const players = state.players.map((p) => chip(p, ` <span class="score">${ic('star', 13)}${p.score}</span>`)).join('');
     if (picking) {
       const g = state.games[picking];
-      const twoPlayer = picking === 'tictactoe' || picking === 'connect4';
+      const twoPlayer = g.mode === 'duel';
       const others = state.players.filter((p) => p.id !== state.me && !p.bot);
       const levels = Object.entries(state.levels).map(([id, name]) => `<button class="btn ${id === 'hard' ? 'pink' : id === 'easy' ? 'ghost' : ''}" data-act="start" data-game="${picking}" data-bot="1" data-level="${id}">${name}</button>`).join('');
       const people = twoPlayer
@@ -94,10 +96,13 @@
 ${people ? `<div class="card pickcard"><h2>${twoPlayer ? 'Play a friend' : 'Play without Pixel Bot'}</h2><div class="row">${people}</div>${twoPlayer && !others.length ? '' : ''}</div>` : `<div class="card pickcard"><h2>Play a friend</h2><p class="sub" style="text-align:left">Nobody else is here yet. ${web ? `Share room code <b>${esc(document.body.dataset.code)}</b>.` : 'Invite friends into the activity.'}</p></div>`}
 <div class="row"><button class="btn ghost" data-act="cancel">Cancel</button></div>`;
     }
-    const cards = Object.entries(state.games).map(([id, g]) => `<button class="game" data-act="pick" data-game="${id}"><span class="em">${ic(g.icon || 'star', 40)}</span><b>${esc(g.name)}</b><small>${esc(g.blurb)}</small><span class="tag">${esc(g.players)}</span></button>`).join('');
+    const card = ([id, g]) => `<button class="game" data-act="pick" data-game="${id}"><span class="em">${ic(g.icon || 'star', 40)}</span><b>${esc(g.name)}</b><small>${esc(g.blurb)}</small><span class="tag">${esc(g.players)}</span></button>`;
+    const all = Object.entries(state.games);
+    const cards = `<h2 class="sect">${ic('robot', 18)} 1v1 games <small>vs a friend or Pixel Bot</small></h2><div class="games">${all.filter(([, g]) => g.mode === 'duel').map(card).join('')}</div>
+<h2 class="sect">${ic('person', 18)} Party games <small>everyone at once, Pixel Bot can join</small></h2><div class="games">${all.filter(([, g]) => g.mode !== 'duel').map(card).join('')}</div>`;
     return `${header(`${state.players.length} player${state.players.length === 1 ? '' : 's'} here`)}
 <div class="card"><h2>Players</h2><div class="players">${players}</div></div>
-<div class="games">${cards}</div>
+${cards}
 <p class="foot">${web ? `Friends join from the dashboard: menu, then Arcade, then enter room code <b>${esc(document.body.dataset.code)}</b>.` : "Anyone in the activity can start a game. Invite friends with the activity's invite button."}</p>`;
   }
 
@@ -166,16 +171,41 @@ ${people ? `<div class="card pickcard"><h2>${twoPlayer ? 'Play a friend' : 'Play
     return `${header(`Reaction Race · Round ${g.round} of ${g.rounds}`)}<div class="pad ${cls}" data-act="click"><div>${text}</div></div><div class="who" style="margin-top:16px">${scores}</div>`;
   }
 
+  // Helpers the newer games' screens (games.js) use.
+  const H = {
+    get state() { return state; }, esc, ic, av, chip, player, now, header, act, render: () => render(),
+    finished: () => finishedButtons(), lb: (points, unit) => leaderboard(points, unit),
+  };
+
   function render() {
     if (!state) return;
     const g = state.game;
+    // Keep whatever someone is typing when the screen redraws.
+    const box = document.getElementById('say');
+    const typing = box ? { key: box.dataset.key, value: box.value, focused: document.activeElement === box, at: box.selectionStart } : null;
     if (!g) return screen(lobby());
+    if (window.PAGames && window.PAGames[g.type]) {
+      screen(window.PAGames[g.type](g, H));
+      const next = document.getElementById('say');
+      if (next && typing && typing.key === next.dataset.key) {
+        next.value = typing.value;
+        if (typing.focused) { next.focus(); try { next.setSelectionRange(typing.at, typing.at); } catch (e) { /* number boxes */ } }
+      } else if (next && !('ontouchstart' in window)) next.focus();
+      return;
+    }
     if (g.type === 'tictactoe' || g.type === 'connect4') return screen(boardGame(g));
     if (g.type === 'trivia') return screen(trivia(g));
     if (g.type === 'reaction') return screen(reaction(g));
   }
 
-  // Smooth countdown bar without redrawing everything.
+  // Countdown bars and little animations, without redrawing everything.
+  setInterval(() => {
+    document.querySelectorAll('.tbar').forEach((b) => {
+      const ends = Number(b.dataset.ends); const total = Number(b.dataset.total) || 1;
+      b.style.width = `${ends ? Math.max(0, Math.min(100, ((ends - now()) / total) * 100)) : 0}%`;
+    });
+    if (window.PAGames) window.PAGames.animate(now());
+  }, 100);
   setInterval(() => {
     const bar = document.getElementById('timebar');
     const g = state && state.game;
@@ -202,6 +232,21 @@ ${people ? `<div class="card pickcard"><h2>${twoPlayer ? 'Play a friend' : 'Play
     if (a === 'move') return act({ action: 'move', cell: Number(el.dataset.cell) });
     if (a === 'answer') return act({ action: 'answer', choice: Number(el.dataset.choice) });
     if (a === 'lobby' || a === 'rematch') return act({ action: a });
+    if (a === 'play') return act({ action: 'play', move: el.dataset.move });
+    if (window.PAGames && state && state.game) window.PAGames.click(a, el, state.game, H);
+  });
+  app.addEventListener('submit', (e) => {
+    const form = e.target.closest('form[data-act="say"]');
+    if (!form) return;
+    e.preventDefault();
+    const box = form.querySelector('input');
+    const text = box.value.trim();
+    if (!text) return;
+    act({ action: 'play', move: text }).then((ok) => {
+      const now = document.getElementById('say');
+      if (ok && now) now.value = '';
+      else if (!ok && now) now.select(); // wrong: keep it so it's easy to fix
+    });
   });
 
   // ---------- start ----------

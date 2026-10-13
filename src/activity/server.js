@@ -82,7 +82,7 @@ function page(clientId, web = null) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
 <title>Pixel Arcade</title><link rel="icon" href="/activity/bot.svg?v=${VERSION}"><link rel="stylesheet" href="/activity/arcade.css?v=${VERSION}"></head>
 <body data-client="${String(clientId).replace(/\D/g, '')}"${extra}><div id="app"><div class="boot"><div class="bot big"></div><p>Loading the arcade…</p></div></div>
-<script src="/activity/discord.js?v=${VERSION}"></script><script src="/activity/arcade.js?v=${VERSION}"></script></body></html>`;
+<script src="/activity/discord.js?v=${VERSION}"></script><script src="/activity/games.js?v=${VERSION}"></script><script src="/activity/arcade.js?v=${VERSION}"></script></body></html>`;
 }
 
 /**

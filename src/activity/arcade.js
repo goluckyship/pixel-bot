@@ -5,15 +5,17 @@
 const crypto = require('node:crypto');
 const QUESTIONS = require('./trivia');
 const ai = require('./ai');
+const MODS = require('./games').GAMES; // the 26 newer games (src/activity/games)
 
 const BOT = 'pixelbot'; // Pixel Bot's player id when you play against it
 
 const GAMES = {
-  tictactoe: { name: 'Tic-Tac-Toe', icon: 'ttt', players: '2 players', blurb: 'Three in a row wins.' },
-  connect4: { name: 'Connect Four', icon: 'c4', players: '2 players', blurb: 'Drop discs, get four in a line.' },
-  trivia: { name: 'Trivia Party', icon: 'trivia', players: 'Everyone', blurb: '10 questions. Fast right answers score more.' },
-  reaction: { name: 'Reaction Race', icon: 'bolt', players: 'Everyone', blurb: 'Click the moment it turns green. Too early is a foul!' },
+  tictactoe: { name: 'Tic-Tac-Toe', icon: 'ttt', players: '2 players', blurb: 'Three in a row wins.', mode: 'duel' },
+  connect4: { name: 'Connect Four', icon: 'c4', players: '2 players', blurb: 'Drop discs, get four in a line.', mode: 'duel' },
+  trivia: { name: 'Trivia Party', icon: 'trivia', players: 'Everyone', blurb: '10 questions. Fast right answers score more.', mode: 'party' },
+  reaction: { name: 'Reaction Race', icon: 'bolt', players: 'Everyone', blurb: 'Click the moment it turns green. Too early is a foul!', mode: 'party' },
 };
+for (const m of Object.values(MODS)) GAMES[m.id] = { name: m.name, icon: m.icon, players: m.players, blurb: m.blurb, mode: m.mode };
 
 const rooms = new Map();
 const SEEN_TIMEOUT = 35_000; // a player who stops checking in for this long has left
@@ -284,7 +286,7 @@ function tick(r) {
   }
   if (r.players.has(BOT) && !humans(r).length) { removeBot(r); r.game = null; changed = true; }
   const g = r.game;
-  if (g && r.players.has(BOT) && botTick(r, g, now)) changed = true;
+  if (g && MODS[g.type]) { if (MODS[g.type].tick(r, g, now)) changed = true; } else if (g && r.players.has(BOT) && botTick(r, g, now)) changed = true;
   if (g?.type === 'trivia' && triviaTick(r, g, now)) changed = true;
   if (g?.type === 'reaction' && reactionTick(r, g, now)) changed = true;
   if (changed) bump(r);
@@ -301,8 +303,16 @@ function act(r, user, body) {
     if (g && !g.finished) return 'A game is already going. Finish it or press "Back to lobby".';
     const vsBot = body.with === BOT || body.bot === true || body.bot === 'true';
     const level = ai.LEVELS[body.level] ? body.level : 'normal';
-    if (vsBot) addBot(r); else if (type === 'trivia' || type === 'reaction') removeBot(r);
-    if (type === 'tictactoe' || type === 'connect4') {
+    if (vsBot) addBot(r); else if (GAMES[type].mode === 'party') removeBot(r);
+    if (GAMES[type].mode === 'duel') {
+      const others = humans(r).filter((id) => id !== user.id);
+      const rival = vsBot ? BOT : body.with && r.players.has(body.with) && body.with !== user.id ? body.with : others[0];
+      if (!rival) return 'You need someone to play with. Pick Pixel Bot, or invite a friend!';
+      const seats = crypto.randomInt(2) ? [user.id, rival] : [rival, user.id];
+      r.game = MODS[type] ? MODS[type].create(r, { seats, level }) : newBoardGame(type, seats);
+    } else if (MODS[type]) {
+      r.game = MODS[type].create(r, { level });
+    } else if (type === 'tictactoe' || type === 'connect4') {
       const others = humans(r).filter((id) => id !== user.id);
       const rival = vsBot ? BOT : body.with && r.players.has(body.with) && body.with !== user.id ? body.with : others[0];
       if (!rival) return 'You need someone to play with. Pick Pixel Bot, or invite a friend!';
@@ -318,7 +328,11 @@ function act(r, user, body) {
     r.game = null;
   } else if (action === 'rematch') {
     if (!g?.finished) return 'Finish this game first.';
-    if (g.type === 'tictactoe' || g.type === 'connect4') {
+    if (MODS[g.type]) {
+      if (g.seats && !g.seats.every((id) => r.players.has(id) || id === BOT)) return 'Your opponent left. Start a new game from the lobby.';
+      if (g.seats?.includes(BOT)) addBot(r);
+      r.game = MODS[g.type].rematch(r, g);
+    } else if (g.type === 'tictactoe' || g.type === 'connect4') {
       if (!g.seats.every((id) => r.players.has(id) || id === BOT)) return 'Your opponent left. Start a new game from the lobby.';
       r.game = newBoardGame(g.type, [g.seats[1], g.seats[0]]);
     } else {
@@ -326,6 +340,9 @@ function act(r, user, body) {
     }
     r.game.level = g.level;
     r.game.by = g.by;
+  } else if (action === 'play') {
+    if (!g || !MODS[g.type]) return 'No game is going.';
+    error = MODS[g.type].act(r, g, user.id, body.move);
   } else if (action === 'move') {
     if (!g || !['tictactoe', 'connect4'].includes(g.type)) return 'No board game is going.';
     error = boardMove(r, g, user.id, body.cell);
@@ -360,6 +377,7 @@ function view(r, userId) {
         picks: g.phase === 'question' ? null : Object.fromEntries(Object.entries(g.answers).map(([id, a]) => [id, a.choice])),
       });
     }
+    if (MODS[g.type]) Object.assign(game, MODS[g.type].view(g, userId, r));
     if (g.type === 'reaction') {
       Object.assign(game, { round: g.round, rounds: ROUNDS, phase: g.phase, results: g.results, fouls: g.fouls, roundWinner: g.roundWinner, wins: g.wins, phaseEnds: g.phaseEnds });
     }

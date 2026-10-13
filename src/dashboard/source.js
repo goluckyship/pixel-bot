@@ -7,7 +7,7 @@ const path = require('node:path');
 
 const ROOT = path.join(__dirname, '..', '..');
 const SKIP_DIRS = new Set(['node_modules', 'data', '.git', '.npm', '.cache']);
-const SHOW = /\.(js|json|md|bat|example|gitignore)$|^\.gitignore$|^\.env\.example$/i;
+const SHOW = /\.(js|json|md|bat|css|html|svg|example|gitignore)$|^\.gitignore$|^\.env\.example$/i;
 const NEVER = /(^|\/)(\.env|env|\.env\.txt|env\.txt)$/i;
 const MAX_BYTES = 1_000_000;
 
@@ -63,6 +63,22 @@ function search(query) {
   return hits;
 }
 
+/** A commit's message and parent, read straight from .git (loose objects only). */
+function commitInfo(hash) {
+  try {
+    const zlib = require('node:zlib');
+    const raw = zlib.inflateSync(fs.readFileSync(path.join(ROOT, '.git', 'objects', hash.slice(0, 2), hash.slice(2)))).toString('utf8');
+    const body = raw.slice(raw.indexOf('\0') + 1);
+    const [head, ...msg] = body.split('\n\n');
+    const parent = /^parent ([0-9a-f]{40})/m.exec(head)?.[1] ?? null;
+    const when = Number(/^committer .* (\d+) [+-]\d{4}$/m.exec(head)?.[1] ?? 0) * 1000;
+    const text = msg.join('\n\n').split('\n')[0].trim();
+    return { hash: hash.slice(0, 7), parent, when, text };
+  } catch {
+    return null;
+  }
+}
+
 /** Which version is running (from .git, without running git). */
 function version() {
   try {
@@ -83,9 +99,18 @@ function version() {
         return m ? { hash: m[1].slice(0, 7), when: Number(m[2]) * 1000, what: m[3] } : null;
       }).filter(Boolean);
     } catch {}
-    return { hash: hash?.slice(0, 7) ?? null, updates };
+    // The latest changes with what they were (as far back as .git keeps them loose).
+    const changes = [];
+    let next = hash;
+    while (next && changes.length < 10) {
+      const info = commitInfo(next);
+      if (!info) break;
+      changes.push(info);
+      next = info.parent;
+    }
+    return { hash: hash?.slice(0, 7) ?? null, updates, changes };
   } catch {
-    return { hash: null, updates: [] };
+    return { hash: null, updates: [], changes: [] };
   }
 }
 
