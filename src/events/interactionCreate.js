@@ -1,18 +1,26 @@
 // Runs every time someone uses a slash command.
 const { Events } = require('discord.js');
 const { ephemeral } = require('../lib/ui');
+const customCommands = require('../lib/customcommands');
 
 module.exports = {
   name: Events.InteractionCreate,
   async execute(interaction) {
+    if (interaction.isAutocomplete?.()) {
+      const command = interaction.client.commands.get(interaction.commandName);
+      await Promise.resolve(command?.autocomplete?.(interaction)).catch((error) => console.error(`Autocomplete for /${interaction.commandName} failed:`, error.message));
+      return;
+    }
+
     let run;
     let label;
     if (interaction.isChatInputCommand()) {
       const command = interaction.client.commands.get(interaction.commandName);
-      if (!command) return;
-      run = () => command.execute(interaction);
+      if (command) run = () => command.execute(interaction);
+      else if (customCommands.find(interaction.guildId, interaction.commandName)) run = () => customCommands.run(interaction);
+      else return;
       label = `/${interaction.commandName}`;
-    } else if ((interaction.isButton?.() || interaction.isModalSubmit?.()) && interaction.customId.startsWith('pb:')) {
+    } else if ((interaction.isButton?.() || interaction.isModalSubmit?.() || interaction.isStringSelectMenu?.()) && interaction.customId.startsWith('pb:')) {
       // Buttons and forms made by Pixel Bot: "pb:<feature>:<extra>"
       const [, key, ...rest] = interaction.customId.split(':');
       const handler = interaction.client.components?.get(key);

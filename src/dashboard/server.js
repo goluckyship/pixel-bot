@@ -10,10 +10,11 @@ const crypto = require('node:crypto');
 const { PermissionFlagsBits } = require('discord.js');
 const auth = require('./auth');
 const pages = require('./pages');
-const { apply } = require('./actions');
+const { apply, applyPanel } = require('./actions');
+const panels = require('../lib/panels');
 const { report } = require('../commands/utility/setup');
 
-const MAX_BODY = 64 * 1024;
+const MAX_BODY = 512 * 1024; // big ticket panels send a lot of fields
 
 function settingsFromEnv() {
   const base = (process.env.DASHBOARD_URL ?? '').trim().replace(/\/+$/, '');
@@ -137,32 +138,48 @@ function createHandler(client, config) {
         return send(res, 200, pages.serverList(user, guilds));
       }
 
-      const match = /^\/g\/(\d+)(?:\/save\/([a-z-]+))?$/.exec(url.pathname);
+      // /g/<server>                      settings page
+      // /g/<server>/save/<section>         save a section (POST)
+      // /g/<server>/panel/<id>             edit a panel
+      // /g/<server>/panel/<id>/<action>    save/duplicate/delete a panel (POST)
+      const match = /^\/g\/(\d+)(?:\/(save|panel)\/([a-z0-9-]+)(?:\/([a-z]+))?)?$/.exec(url.pathname);
       if (match) {
-        const guild = client.guilds.cache.get(match[1]);
+        const [, guildId, area, target, action] = match;
+        const guild = client.guilds.cache.get(guildId);
         const member = guild && (await memberWithAccess(guild, user.id));
         if (!member) {
           const e = pages.errorPage(user, 'You need the Manage Server permission in that server to change its settings.', 403);
           return send(res, e.status, e.html);
         }
+        const panel = area === 'panel' ? panels.get(guild.id, target) : null;
+        if (area === 'panel' && !panel) {
+          const e = pages.errorPage(user, 'That panel was deleted.', 404);
+          return send(res, e.status, e.html);
+        }
 
-        if (req.method === 'POST' && match[2]) {
+        if (req.method === 'POST' && (area === 'save' || (panel && action))) {
           const form = parseForm(await readBody(req));
           if (!auth.csrfOk(session, form.csrf)) {
             const e = pages.errorPage(user, 'That form expired. Go back, refresh the page and try again.', 403);
             return send(res, e.status, e.html);
           }
-          const result = apply(guild, member, match[2], form);
+          const result = panel ? await applyPanel(guild, member, panel, action, form) : await apply(guild, member, target, form);
           flashes.set(session.csrf, result);
-          console.log(`Dashboard: ${user.username} changed "${match[2]}" in ${guild.name} (${result.ok ? 'saved' : result.text})`);
-          const anchor = match[2].startsWith('schedule') ? 'schedule' : match[2];
-          return redirect(res, `/g/${guild.id}#${anchor}`);
+          console.log(`Dashboard: ${user.username} changed "${panel ? `panel ${panel.id} ${action}` : target}" in ${guild.name} (${result.ok ? 'saved' : result.text})`);
+          const anchor = target.startsWith('schedule') ? 'schedule' : target.startsWith('command') ? 'commands' : target;
+          return redirect(res, result.redirect ?? `/g/${guild.id}#${anchor}`);
         }
 
-        if (req.method === 'GET' && !match[2]) {
+        if (req.method === 'GET' && !action) {
           const flash = flashes.get(session.csrf);
           flashes.delete(session.csrf);
-          return send(res, 200, pages.guildPage({ guild, user, csrf: session.csrf, flash, problems: report(guild).problems }));
+          if (panel) return send(res, 200, pages.panelPage({ guild, user, csrf: session.csrf, flash, panel }));
+          if (!area) {
+            return send(res, 200, pages.guildPage({
+              guild, user, csrf: session.csrf, flash, problems: report(guild).problems,
+              editingCommand: url.searchParams.get('cc') ?? null,
+            }));
+          }
         }
       }
 

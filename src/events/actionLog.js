@@ -171,7 +171,7 @@ module.exports = [
       const member = after.member;
       if (!member || member.user.bot) return;
       await sendLog(after.guild, logEntry({
-        color: COLORS.brand, user: member.user,
+        color: undefined, user: member.user,
         description: `${member} switched voice channels <#${before.channelId}> -> <#${after.channelId}>`, footer: `ID: ${member.id}`,
       }));
     },

@@ -1,5 +1,5 @@
 // Runs once, when Pixel Bot has connected to Discord.
-const { Events, ActivityType, OAuth2Scopes, PermissionFlagsBits } = require('discord.js');
+const { Events, OAuth2Scopes, PermissionFlagsBits } = require('discord.js');
 const reminders = require('../lib/reminders');
 const schedules = require('../lib/schedules');
 const dashboard = require('../dashboard/server');
@@ -7,6 +7,9 @@ const config = require('../config');
 const db = require('../lib/storage');
 const { findChannel } = require('../lib/resolve');
 const { syncStaffRole } = require('../lib/roles');
+const appearance = require('../lib/appearance');
+const customCommands = require('../lib/customcommands');
+const panels = require('../lib/panels');
 
 /** First run in a server: switch on the welcome message from src/config.js. */
 function seedWelcome(guild) {
@@ -40,13 +43,15 @@ module.exports = {
     await client.application.commands.set(commands);
     console.log(`Registered ${commands.length} slash commands.`);
 
-    client.user.setActivity('/help', { type: ActivityType.Listening });
+    appearance.applyPresence(client);
     reminders.start(client);
     schedules.start(client);
     if (!client.dashboard) client.dashboard = dashboard.start(client);
 
     for (const guild of client.guilds.cache.values()) {
       seedWelcome(guild);
+      panels.store(guild.id); // turns the old ticket settings into Panel #1 the first time
+      await customCommands.register(guild).catch((error) => console.warn(`Could not register custom commands in ${guild.name}: ${error.message}`));
       const changed = await syncAllStaff(guild).catch((error) => {
         console.warn(`Could not check Staff roles in ${guild.name}: ${error.message}`);
         return 0;

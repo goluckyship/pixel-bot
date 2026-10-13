@@ -30,7 +30,7 @@ module.exports = {
       if (Number.isNaN(color)) return interaction.reply(ephemeral('The colour should look like `#7c5cff`. Nothing was posted.'));
       if (image && !isHttpsUrl(image)) return interaction.reply(ephemeral('The image link must start with https://. Nothing was posted.'));
 
-      const card = embed(color ?? COLORS.brand).setDescription(value(interaction, 'message')).setTimestamp()
+      const card = embed(color).setDescription(value(interaction, 'message')).setTimestamp()
         .setFooter({ text: `Posted by ${interaction.user.username}` });
       const title = value(interaction, 'title');
       if (title) card.setTitle(title);

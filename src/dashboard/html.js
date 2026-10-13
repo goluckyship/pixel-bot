@@ -25,6 +25,14 @@ nav.jump{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 18px}nav.jump a{font-siz
 .servers a{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--line);border-radius:10px;margin:0 0 10px;background:var(--card);text-decoration:none;color:var(--text)}
 .servers img,.servers .noicon{width:40px;height:40px;border-radius:50%;background:var(--line);display:grid;place-items:center;font-weight:700}
 .muted{color:var(--muted)}code{font-size:13px}
+details.item{border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin:10px 0;background:var(--bg)}
+details.item summary{cursor:pointer;font-weight:600}details.item[open] summary{margin-bottom:6px}
+.actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}.actions button{margin-top:14px}
+button.secondary{background:transparent;color:var(--brand);border:1px solid var(--brand)}
+button.danger{background:var(--bad)}.badge{display:inline-block;font-size:12px;padding:1px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted);margin-left:6px}
+.swatch{display:inline-block;width:14px;height:14px;border-radius:4px;vertical-align:-2px;border:1px solid var(--line)}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 14px}@media (max-width:640px){.grid3{grid-template-columns:1fr}}
+td .small{display:inline-block}a.small{font-size:13px}
 `;
 
 function page({ title, user, body }) {
@@ -46,6 +54,14 @@ const checks = (name, options, selectedIds) => {
     .join('') || '<span class="muted">Nothing to pick</span>'}</div>`;
 };
 
+const input = (name, value, { max = 256, placeholder = '' } = {}) =>
+  `<input type="text" name="${esc(name)}" maxlength="${max}" value="${esc(value)}"${placeholder ? ` placeholder="${esc(placeholder)}"` : ''}>`;
+
+const textarea = (name, value, { max = 2000, placeholder = '' } = {}) =>
+  `<textarea name="${esc(name)}" maxlength="${max}"${placeholder ? ` placeholder="${esc(placeholder)}"` : ''}>${esc(value)}</textarea>`;
+
+const hidden = (name, value) => `<input type="hidden" name="${esc(name)}" value="${esc(value)}">`;
+
 const toggle = (name, on, text) => `<label class="toggle"><input type="checkbox" name="${esc(name)}" value="1"${on ? ' checked' : ''}> ${esc(text)}</label>`;
 
-module.exports = { esc, page, select, checks, toggle };
+module.exports = { esc, page, select, checks, toggle, input, textarea, hidden };

@@ -8,7 +8,7 @@ function logChannel(guild) {
 }
 
 /** A log entry in the style of the old Dyno log. */
-function logEntry({ color = COLORS.brand, user, description, footer }) {
+function logEntry({ color, user, description, footer }) {
   const card = embed(color).setDescription(truncate(description, 4000)).setTimestamp();
   if (user) card.setAuthor({ name: user.tag ?? user.username ?? 'Unknown user', iconURL: user.displayAvatarURL?.() });
   if (footer) card.setFooter({ text: truncate(footer, 2000) });

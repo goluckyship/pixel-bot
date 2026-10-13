@@ -112,8 +112,10 @@ These only show up for members who have the matching permission.
 | `/poll` | Start a poll with 2 to 6 choices |
 | `/remind` | Get a reminder later, like `in: 2h` `about: check the oven` |
 | `/welcome set / off / test` | Greet new members in a channel (needs Manage Server) |
-| `/panel tickets` | Post the "Create ticket" button (needs Manage Server) |
-| `/panel roles` | Post buttons members click to get or remove roles (needs Manage Server) |
+| `/panel post` | Post or update one of your custom panels from the dashboard (needs Manage Server) |
+| `/panel list` | List your custom panels (needs Manage Server) |
+| `/panel tickets` | Quickly post a basic "Create ticket" button (needs Manage Server) |
+| `/panel roles` | Quickly post up to 5 role buttons (needs Manage Server) |
 | `/setup show` | Check every setting and see anything that needs fixing (needs Manage Server) |
 | `/addemoji` | Add a server emoji from an image (needs Manage Expressions) |
 | `/announce` | Post a styled announcement, with an optional @everyone, @here or role ping (needs Manage Server) |
@@ -137,7 +139,13 @@ The roles and channels these use start from `src/config.js`, and can be changed 
 
 ## Web dashboard
 
-Pixel Bot has a built-in website where anyone with **Manage Server** can change its settings: welcome message, staff log channel, auto roles, the rank ladder, tickets, automod, the word filter and scheduled messages. People log in with Discord; nobody else can change anything.
+Pixel Bot has a built-in website where anyone with **Manage Server** can change its settings. People log in with Discord; nobody else can change anything. From there you can set up:
+
+- **Panels:** as many as you like. A *role panel* hands out roles from buttons or a dropdown (optionally only one role per member). A *ticket panel* opens private tickets; each button can be a different kind of ticket with its own staff, category, channel name, up to 5 questions and first message. Every panel has its own title, text, colour, images and footer, and saving updates the posted message automatically. Up to 25 buttons or choices per panel.
+- **Custom commands:** your own slash commands like `/rules`, replying with text or a styled card. They can be private, limited to certain roles, or give/remove a role.
+- **Welcome and goodbye messages:** card or plain text, title, colour, banner image, footer, ping on/off, and an optional welcome DM.
+- **Appearance:** the bot's nickname, status ("Watching the server"), status dot, and the colour of all its cards (server owner only for the last three).
+- Staff log channel, auto roles, the rank ladder, ticket defaults, automod, the word filter and scheduled messages.
 
 To switch it on:
 

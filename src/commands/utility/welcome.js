@@ -48,7 +48,7 @@ module.exports = {
         return interaction.reply(ephemeral(`I can't send messages in <#${channel.id}>. Give me access to that channel first.`));
       }
 
-      settings.welcome = { channelId: channel.id, message };
+      settings.welcome = { ...(settings.welcome ?? {}), channelId: channel.id, message };
       db.save();
       return interaction.reply(
         ephemeral(`✅ New members will be welcomed in <#${channel.id}>. Use \`/welcome test\` to preview it.`),
@@ -66,10 +66,10 @@ module.exports = {
     if (!settings.welcome) {
       return interaction.reply(ephemeral('Welcome messages are off. Turn them on with `/welcome set`.'));
     }
-    const preview = welcomeMessage(settings.welcome.message, interaction.member);
+    const preview = welcomeMessage(settings.welcome, interaction.member);
     return interaction.reply({
-      ...ephemeral(`**Preview** (posts in <#${settings.welcome.channelId}>):`),
-      embeds: preview.embeds,
+      ...ephemeral(`**Preview** (posts in <#${settings.welcome.channelId}>):${preview.embeds ? '' : `\n\n${preview.content}`}`),
+      embeds: preview.embeds ?? [],
     });
   },
 };

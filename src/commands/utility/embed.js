@@ -20,7 +20,7 @@ function fromForm(interaction) {
   if (!title && !description && !image) return { error: 'Add at least a title, some text or an image.' };
   if (Number.isNaN(color)) return { error: 'The colour should look like `#7c5cff`.' };
   if (image && !isHttpsUrl(image)) return { error: 'The image link must start with https://' };
-  const card = embed(color ?? COLORS.brand);
+  const card = embed(color);
   if (title) card.setTitle(title);
   if (description) card.setDescription(description);
   if (image) card.setImage(image);

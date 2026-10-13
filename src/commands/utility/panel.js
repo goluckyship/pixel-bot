@@ -2,17 +2,24 @@ const { SlashCommandBuilder, PermissionFlagsBits, InteractionContextType, Channe
 const { ephemeral } = require('../../lib/ui');
 const tickets = require('../../lib/tickets');
 const rolebuttons = require('../../lib/rolebuttons');
-
-/** A normal emoji like 🔴, or a server emoji like <:pixel:123...>. */
-function isEmoji(text) {
-  return /^<a?:\w{2,32}:\d{17,20}>$/.test(text) || (/^[\p{Extended_Pictographic}\p{Regional_Indicator}\u200d\ufe0f\u20e3#*0-9\p{Emoji_Modifier}]+$/u.test(text) && /\p{Extended_Pictographic}|\p{Regional_Indicator}|\u20e3/u.test(text));
-}
+const panels = require('../../lib/panels');
+const { isEmoji } = require('../../lib/emoji');
 
 const builder = new SlashCommandBuilder()
   .setName('panel')
-  .setDescription('Post a ticket panel or a role button panel')
+  .setDescription('Post your custom panels, or a quick ticket/role panel')
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
   .setContexts(InteractionContextType.Guild)
+  .addSubcommand((sub) =>
+    sub
+      .setName('post')
+      .setDescription('Post (or update) one of your custom panels from the dashboard')
+      .addStringOption((option) => option.setName('panel').setDescription('Which panel').setRequired(true).setAutocomplete(true))
+      .addChannelOption((option) =>
+        option.setName('channel').setDescription('Where to post it (default: where it was posted before, or here)').addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement),
+      ),
+  )
+  .addSubcommand((sub) => sub.setName('list').setDescription('List your custom panels'))
   .addSubcommand((sub) =>
     sub
       .setName('tickets')
@@ -50,11 +57,40 @@ module.exports = {
       return null;
     },
     role: (interaction, roleId) => rolebuttons.onClick(interaction, roleId),
+    pnl: (interaction, panelId, what, index) => panels.onInteraction(interaction, panelId, what, index),
+  },
+
+  async autocomplete(interaction) {
+    const typed = String(interaction.options.getFocused() ?? '').toLowerCase();
+    const choices = panels
+      .list(interaction.guildId)
+      .filter((p) => !typed || p.name.toLowerCase().includes(typed) || String(p.id) === typed)
+      .slice(0, 25)
+      .map((p) => ({ name: `#${p.id} ${p.name} (${p.type})`.slice(0, 100), value: String(p.id) }));
+    await interaction.respond(choices);
   },
 
   async execute(interaction) {
-    const channel = interaction.options.getChannel('channel') ?? interaction.channel;
     const kind = interaction.options.getSubcommand();
+
+    if (kind === 'list') {
+      const all = panels.list(interaction.guildId);
+      if (!all.length) return interaction.reply(ephemeral('No custom panels yet. Make them in the web dashboard under **Panels**.'));
+      const lines = all.map((p) => `**#${p.id} ${p.name}** · ${p.type}, ${p.items.length} ${p.type === 'roles' ? 'role' : 'option'}${p.items.length === 1 ? '' : 's'}${p.channelId ? ` · posted in <#${p.channelId}>` : ' · not posted'}`);
+      return interaction.reply(ephemeral(lines.join('\n').slice(0, 2000)));
+    }
+
+    if (kind === 'post') {
+      const raw = interaction.options.getString('panel').trim().replace(/^#/, '');
+      const panel = panels.get(interaction.guildId, raw) ?? panels.list(interaction.guildId).find((p) => p.name.toLowerCase() === raw.toLowerCase());
+      if (!panel) return interaction.reply(ephemeral("I couldn't find that panel. Use `/panel list` to see them."));
+      const target = interaction.options.getChannel('channel') ?? (panel.channelId && interaction.guild.channels.cache.get(panel.channelId)) ?? interaction.channel;
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      const result = await panels.post(interaction.guild, panel, target.id);
+      return interaction.editReply(`${result.ok ? '✅' : '⚠️'} ${result.text}`);
+    }
+
+    const channel = interaction.options.getChannel('channel') ?? interaction.channel;
     let message;
 
     if (kind === 'tickets') {
