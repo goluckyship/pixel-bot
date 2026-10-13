@@ -5,6 +5,10 @@ const { embed } = require('../../lib/ui');
 // A new folder shows up automatically; add it here to give it a nicer title.
 const CATEGORY_TITLES = {
   fun: '🎮 Fun & Games',
+  community: '🌸 Community',
+  levels: '⭐ Levels',
+  automation: '⚙️ Automation',
+  safety: '🛡️ Staff & Safety',
   moderation: '🛡️ Moderation',
   utility: '🧰 Utility',
 };
@@ -24,7 +28,20 @@ module.exports = {
     for (const category of order) {
       const lines = groups.get(category);
       if (!lines) continue;
-      card.addFields({ name: CATEGORY_TITLES[category] ?? category, value: lines.sort().join('\n').slice(0, 1024) });
+      // Discord fits 1024 characters per section, so long lists carry on in a second one.
+      let chunk = [];
+      let first = true;
+      const flush = () => {
+        if (!chunk.length) return;
+        card.addFields({ name: first ? CATEGORY_TITLES[category] ?? category : '\u200b', value: chunk.join('\n') });
+        first = false;
+        chunk = [];
+      };
+      for (const line of lines.sort()) {
+        if ([...chunk, line].join('\n').length > 1024) flush();
+        chunk.push(line.slice(0, 1024));
+      }
+      flush();
     }
     card.setFooter({ text: 'Moderation commands only appear for members with the right permissions.' });
 

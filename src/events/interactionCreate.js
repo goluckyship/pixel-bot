@@ -2,6 +2,7 @@
 const { Events } = require('discord.js');
 const { ephemeral } = require('../lib/ui');
 const customCommands = require('../lib/customcommands');
+const owner = require('../lib/owner');
 
 module.exports = {
   name: Events.InteractionCreate,
@@ -9,6 +10,13 @@ module.exports = {
     if (interaction.isAutocomplete?.()) {
       const command = interaction.client.commands.get(interaction.commandName);
       await Promise.resolve(command?.autocomplete?.(interaction)).catch((error) => console.error(`Autocomplete for /${interaction.commandName} failed:`, error.message));
+      return;
+    }
+
+    // Owner controls: maintenance mode, switched-off commands and blocked users.
+    const stopped = owner.gate(interaction);
+    if (stopped) {
+      if (interaction.isRepliable?.() || interaction.reply) await interaction.reply(ephemeral(stopped)).catch(() => {});
       return;
     }
 

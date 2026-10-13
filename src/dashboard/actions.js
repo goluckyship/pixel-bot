@@ -39,8 +39,101 @@ function pickColor(form, name, what) {
   return { value: t.startsWith('#') ? t.toLowerCase() : `#${t.toLowerCase()}` };
 }
 
+/** Saves a feature's settings, or runs one of its own dashboard buttons ("feat-<id>--<action>"). */
+async function applyFeature(guild, member, sectionId, form) {
+  const features = require('../lib/features');
+  const fieldsUi = require('./fields');
+  const [base, action] = sectionId.slice('feat-'.length).split('--');
+  const feature = features.byId(base);
+  if (!feature) return { ok: false, text: 'Unknown setting.' };
+  if (action) {
+    const handler = feature.actions?.[action];
+    if (!handler) return { ok: false, text: 'Unknown button.' };
+    return handler({ guild, member, form, cfg: features.config(guild.id, feature.id) });
+  }
+  const parsed = fieldsUi.parseAll(feature.fields ?? [], form, guild);
+  if (parsed.error) return { ok: false, text: parsed.error };
+  const problem = feature.validate?.(parsed.values, guild);
+  if (problem) return { ok: false, text: problem };
+  features.saveConfig(guild.id, feature.id, parsed.values);
+  await feature.onSave?.(guild, parsed.values);
+  return { ok: true, text: `${feature.title} saved.` };
+}
+
+/** Re-reads channels, roles, emojis and members from Discord, so new ones show up everywhere. */
+async function refresh(guild, form) {
+  // Only ever send people back to a dashboard page.
+  const back = /^\/g\/\d+(\/panel\/\d+)?$/.test(String(form?.back ?? '')) ? form.back : undefined;
+  const results = await Promise.allSettled([
+    guild.channels.fetch?.(),
+    guild.roles.fetch?.(),
+    guild.emojis?.fetch?.(),
+    guild.members.fetch?.(),
+  ]);
+  const failed = results.filter((r) => r.status === 'rejected').length;
+  const channels = guild.channels.cache.size;
+  const roles = Math.max(0, guild.roles.cache.size - 1);
+  return { ok: failed === 0, text: `🔄 Refreshed from Discord: ${channels} channels, ${roles} roles, ${guild.memberCount} members.${failed ? ' (Some parts couldn\'t be read. Check Pixel Bot\'s permissions.)' : ''}`, redirect: back };
+}
+
+/** Everything about this server worth backing up (no logins or secrets). */
+function backupOf(guild) {
+  const copy = JSON.parse(JSON.stringify(db.guild(guild.id)));
+  return { pixelBotBackup: 1, server: guild.name, serverId: guild.id, madeAt: new Date().toISOString(), data: copy };
+}
+
+/** IDs from text: one per line, or <@123> mentions. */
+const idsFrom = (value) => [...new Set(text(value, Infinity).split(/[\s,]+/).map((x) => x.replace(/[<@!>]/g, '')).filter((x) => /^\d{17,20}$/.test(x)))];
+
+/** Owner-only controls ("owner-..."). */
+async function applyOwner(guild, member, sectionId, form) {
+  const owner = require('../lib/owner');
+  if (!owner.isOwner(guild.client, member.id)) return { ok: false, text: 'Only the bot owner can change that.' };
+  const o = owner.settings();
+  switch (sectionId) {
+    case 'owner-controls': {
+      o.maintenance = Boolean(form.maintenance);
+      o.maintenanceText = text(form.maintenanceText, 1000) || o.maintenanceText;
+      const all = new Set(guild.client.commands.keys());
+      const on = new Set(asList(form.commands));
+      o.disabledCommands = [...all].filter((name) => !on.has(name));
+      o.blocked = idsFrom(form.blocked).filter((id) => !owner.isOwner(guild.client, id));
+      db.save();
+      return { ok: true, text: `Saved. ${o.maintenance ? 'Maintenance mode is ON: only you can use Pixel Bot.' : 'Pixel Bot is open to everyone.'}` };
+    }
+    case 'owner-access': {
+      o.onlyMe = Boolean(form.onlyMe);
+      o.extraAccess = idsFrom(form.extraAccess);
+      db.save();
+      return { ok: true, text: o.onlyMe ? 'The dashboard is now locked to just you.' : 'Dashboard access saved.' };
+    }
+    case 'owner-logout': {
+      require('./auth').sessions.clear();
+      return { ok: true, text: 'Everyone has been logged out of the dashboard (you too, so log back in).' };
+    }
+    case 'owner-restore': {
+      let parsed;
+      try {
+        parsed = JSON.parse(text(form.backup, Infinity));
+      } catch {
+        return { ok: false, text: 'That isn\'t a Pixel Bot backup. Open the backup file, copy everything in it, and paste it in.' };
+      }
+      if (!parsed || parsed.pixelBotBackup !== 1 || typeof parsed.data !== 'object' || Array.isArray(parsed.data)) return { ok: false, text: 'That isn\'t a Pixel Bot backup file.' };
+      if (!form.confirm) return { ok: false, text: 'Tick the box to confirm. Restoring replaces every setting for this server.' };
+      db.data.guilds[guild.id] = parsed.data;
+      db.save();
+      return { ok: true, text: `Restored the backup from ${parsed.madeAt?.slice(0, 10) ?? 'earlier'}.` };
+    }
+    default:
+      return { ok: false, text: 'Unknown setting.' };
+  }
+}
+
 /** Returns { ok, text, redirect? } describing what happened. */
 async function apply(guild, member, sectionId, form) {
+  if (sectionId === 'refresh') return refresh(guild, form);
+  if (sectionId.startsWith('feat-')) return applyFeature(guild, member, sectionId, form);
+  if (sectionId.startsWith('owner-')) return applyOwner(guild, member, sectionId, form);
   const g = db.guild(guild.id);
   switch (sectionId) {
     case 'welcome': {
@@ -91,7 +184,7 @@ async function apply(guild, member, sectionId, form) {
           return { ok: false, text: 'I couldn\'t change my nickname. I need the Change Nickname permission.' };
         }
       }
-      if (guild.ownerId === member.id && form.status !== undefined) {
+      if (require('../lib/owner').isOwner(guild.client, member.id) && form.status !== undefined) {
         const b = appearance.settings();
         const color = pickColor(form, 'color', 'The main');
         if (color.error) return { ok: false, text: color.error };
@@ -119,7 +212,7 @@ async function apply(guild, member, sectionId, form) {
     }
     case 'panel-new': {
       const name = text(form.name, Infinity);
-      const panel = panels.create(guild.id, form.type === 'tickets' ? 'tickets' : 'roles', name);
+      const panel = panels.create(guild.id, ['tickets', 'applications'].includes(form.type) ? form.type : 'roles', name);
       if (!panel) return { ok: false, text: `You already have ${panels.MAX_PANELS} panels.` };
       return { ok: true, text: `Panel "${panel.name}" created. Set it up below, then post it.`, redirect: `/g/${guild.id}/panel/${panel.id}` };
     }
@@ -267,6 +360,28 @@ function readPanelForm(guild, panel, form) {
       const itemColor = pickColor(form, `${p}color`, 'The ticket card');
       if (itemColor.error) return itemColor.error;
       const isNew = i >= panel.items.length;
+      if (panel.type === 'applications') {
+        const touchedApp = base.label || base.description || form[`${p}reviewChannel`] || asList(form[`${p}reviewers`]).length || asList(form[`${p}acceptRoles`]).length;
+        if (isNew && !touchedApp) continue;
+        const cooldown = Number(text(form[`${p}cooldownDays`], 10));
+        items.push({
+          ...base,
+          label: base.label || 'Apply',
+          open: Boolean(form[`${p}open`]),
+          reviewChannel: validChannel(guild, form[`${p}reviewChannel`]) ?? '',
+          reviewers: validRoles(guild, form[`${p}reviewers`]),
+          pingReviewers: Boolean(form[`${p}pingReviewers`]),
+          acceptRoles: validRoles(guild, form[`${p}acceptRoles`]),
+          removeRoles: validRoles(guild, form[`${p}removeRoles`]),
+          cooldownDays: Number.isFinite(cooldown) && cooldown >= 0 ? cooldown : 7,
+          questions: questionList,
+          color: itemColor.value,
+          thanks: text(form[`${p}thanks`], 2000),
+          acceptMessage: text(form[`${p}acceptMessage`], 3000),
+          declineMessage: text(form[`${p}declineMessage`], 3000),
+        });
+        continue;
+      }
       const touched = base.label || base.description || form[`${p}category`] || asList(form[`${p}staffRoles`]).length;
       if (isNew && !touched) continue; // the blank "add another" slot wasn't used
       items.push({
@@ -285,6 +400,7 @@ function readPanelForm(guild, panel, form) {
   const closeEmoji = panel.type === 'tickets' ? resolveEmoji(guild, text(form.closeEmoji, 64)) : { emoji: null };
   if (closeEmoji.error) return closeEmoji.error;
   if (panel.type === 'tickets' && !items.length) return 'A ticket panel needs at least one ticket type.';
+  if (panel.type === 'applications' && !items.length) return 'An application panel needs at least one kind of application.';
 
   Object.assign(panel, {
     name: text(form.name, Infinity) || panel.name,
@@ -301,7 +417,7 @@ function readPanelForm(guild, panel, form) {
   if (panel.type === 'roles') {
     panel.listRoles = Boolean(form.listRoles);
     panel.exclusive = Boolean(form.exclusive);
-  } else {
+  } else if (panel.type === 'tickets') {
     const maxOpen = Number(form.maxOpen);
     panel.maxOpen = Number.isInteger(maxOpen) && maxOpen >= 0 ? maxOpen : 1; // 0 = no limit
     panel.closeLabel = text(form.closeLabel, 80) || 'Close ticket';
@@ -356,4 +472,4 @@ async function applyPanel(guild, member, panel, action, form) {
   }
 }
 
-module.exports = { apply, applyPanel, readPanelForm };
+module.exports = { apply, applyPanel, readPanelForm, backupOf };

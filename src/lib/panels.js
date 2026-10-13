@@ -50,6 +50,20 @@ function seedFromOldSettings(guildId, panels) {
 }
 
 function blankItem(type) {
+  if (type === 'applications') {
+    return {
+      label: 'Apply for staff', emoji: '📝', style: 'green', description: '', color: '', open: true,
+      questions: [
+        { text: 'How old are you?', type: 'short', required: true, help: '', placeholder: '', choices: [] },
+        { text: 'Why do you want to join the team?', type: 'long', required: true, help: '', placeholder: '', choices: [] },
+        { text: 'Any experience moderating?', type: 'long', required: false, help: '', placeholder: '', choices: [] },
+      ],
+      reviewChannel: '', reviewers: [], pingReviewers: false, acceptRoles: [], removeRoles: [], cooldownDays: 7,
+      thanks: '📝 Thanks for applying! The team will review it and you\'ll get a DM with the result.',
+      acceptMessage: '🎉 Good news! Your {application} in **{server}** was accepted.',
+      declineMessage: 'Thanks for applying in **{server}**. Your {application} wasn\'t accepted this time.',
+    };
+  }
   return type === 'tickets'
     ? {
         label: 'Create ticket', emoji: '🎟️', style: 'blurple', description: '',
@@ -65,14 +79,14 @@ function blank(type, name) {
     id: 0,
     type,
     name,
-    title: type === 'tickets' ? 'Tickets' : 'Roles',
-    description: type === 'tickets' ? 'Click a button below to open a ticket.' : 'Click a button to get or remove a role.',
+    title: { tickets: 'Tickets', applications: 'Applications', roles: 'Roles' }[type],
+    description: { tickets: 'Click a button below to open a ticket.', applications: 'Want to join the team? Click below to apply.', roles: 'Click a button to get or remove a role.' }[type],
     color: '',
     image: '',
     thumbnail: '',
     footer: '',
     mode: 'buttons', // or 'dropdown'
-    placeholder: type === 'tickets' ? 'Pick a ticket type' : 'Pick your roles',
+    placeholder: { tickets: 'Pick a ticket type', applications: 'Pick what to apply for', roles: 'Pick your roles' }[type],
     listRoles: true, // roles panels: list the roles under the description
     exclusive: false, // roles panels: members can only have one role from this panel
     maxOpen: 1, // tickets panels: open tickets one member can have from this panel (0 = no limit)
@@ -80,7 +94,7 @@ function blank(type, name) {
     closeEmoji: '🔒',
     closeStyle: 'red',
     transcriptChannel: '', // tickets panels: blank = the server's default
-    items: type === 'tickets' ? [blankItem('tickets')] : [],
+    items: type === 'roles' ? [] : [blankItem(type)],
     channelId: null,
     messageId: null,
   };
@@ -92,7 +106,8 @@ const get = (guildId, id) => store(guildId).items[Number(id)] ?? null;
 function create(guildId, type, name) {
   const panels = store(guildId);
   if (Object.keys(panels.items).length >= MAX_PANELS) return null;
-  const panel = blank(type === 'tickets' ? 'tickets' : 'roles', name || (type === 'tickets' ? 'Tickets' : 'Roles'));
+  const kind = ['tickets', 'applications'].includes(type) ? type : 'roles';
+  const panel = blank(kind, name || { tickets: 'Tickets', applications: 'Applications', roles: 'Roles' }[kind]);
   panel.id = ++panels.counter;
   panels.items[panel.id] = panel;
   db.save();
@@ -355,7 +370,7 @@ async function onInteraction(interaction, panelId, what, index, page) {
   indexes = indexes.filter((i) => Number.isInteger(i) && panel.items[i]);
   if (!indexes.length) return interaction.reply(ephemeral('That option was removed from this panel. Ask a moderator to update it.'));
 
-  if (panel.type === 'tickets') return tickets.onPanelOpen(interaction, panel, indexes[0]);
+  if (panel.type === 'tickets' || panel.type === 'applications') return tickets.onPanelOpen(interaction, panel, indexes[0]);
   if (what === 'sel') return pickRoles(interaction, panel, indexes);
   return toggleRole(interaction, panel, panel.items[indexes[0]]);
 }
@@ -370,6 +385,14 @@ function problems(guild, panel) {
       else if (!role.editable) out.push(`Pixel Bot's role must be above "${role.name}" to hand it out.`);
     }
     if (!panel.items.length) out.push('Add at least one role.');
+  } else if (panel.type === 'applications') {
+    for (const item of panel.items) {
+      if (!guild.channels.cache.get(item.reviewChannel)) out.push(`"${item.label}" needs a review channel where staff will see applications.`);
+      for (const id of item.acceptRoles ?? []) {
+        const role = guild.roles.cache.get(id);
+        if (role && !role.editable) out.push(`Pixel Bot's role must be above "${role.name}" to give it to accepted applicants.`);
+      }
+    }
   } else {
     for (const item of panel.items) {
       if (item.category && !findCategory(guild, item.category)) out.push(`The category for "${item.label}" was deleted.`);

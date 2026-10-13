@@ -26,6 +26,23 @@ function loadCommands() {
       commands.set(command.data.name, command);
     }
   }
+
+  // Commands that belong to a feature in src/features. They politely refuse
+  // while that feature is switched off in the dashboard.
+  const features = require('./features');
+  for (const feature of features.all()) {
+    for (const command of feature.commands ?? []) {
+      if (commands.has(command.data.name)) {
+        console.warn(`Skipped /${command.data.name} from ${feature.title}: that name is already used.`);
+        continue;
+      }
+      const run = command.execute;
+      command.category = feature.group ?? 'community';
+      command.feature = feature.id;
+      command.execute = (interaction) => (features.isOn(interaction.guildId, feature.id) ? run(interaction) : features.offReply(interaction, feature));
+      commands.set(command.data.name, command);
+    }
+  }
   return commands;
 }
 
@@ -35,6 +52,26 @@ function loadEvents(client) {
     const loaded = require(path.join(root, file));
     for (const event of Array.isArray(loaded) ? loaded : [loaded]) attachEvent(client, event);
   }
+  // Events from feature modules only run while the feature is switched on
+  // (unless the event says it always runs, e.g. to keep stats).
+  const features = require('./features');
+  for (const feature of features.all()) {
+    for (const event of feature.events ?? []) {
+      attachEvent(client, {
+        ...event,
+        execute: (...args) => {
+          const guildId = guildOf(args[0]);
+          if (!event.always && guildId && !features.isOn(guildId, feature.id)) return null;
+          return event.execute(...args);
+        },
+      });
+    }
+  }
+}
+
+/** Works out which server an event belongs to, from its first argument. */
+function guildOf(first) {
+  return first?.guildId ?? first?.guild?.id ?? first?.message?.guildId ?? first?.message?.guild?.id ?? null;
 }
 
 function attachEvent(client, event) {
@@ -54,6 +91,9 @@ function collectComponents(commands) {
   const handlers = new Map();
   for (const command of commands.values()) {
     for (const [key, handler] of Object.entries(command.components ?? {})) handlers.set(key, handler);
+  }
+  for (const feature of require('./features').all()) {
+    for (const [key, handler] of Object.entries(feature.components ?? {})) handlers.set(key, handler);
   }
   return handlers;
 }

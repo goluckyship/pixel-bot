@@ -12,6 +12,7 @@ const auth = require('./auth');
 const pages = require('./pages');
 const { apply, applyPanel } = require('./actions');
 const panels = require('../lib/panels');
+const owner = require('../lib/owner');
 const { report } = require('../commands/utility/setup');
 
 const MAX_BODY = 20 * 1024 * 1024; // big panels with lots of questions send a lot of fields
@@ -34,7 +35,11 @@ function settingsFromEnv() {
 async function memberWithAccess(guild, userId) {
   const member = guild.members.cache.get(userId) ?? (await guild.members.fetch(userId).catch(() => null));
   if (!member) return null;
-  const ok = guild.ownerId === userId || member.permissions.has(PermissionFlagsBits.ManageGuild);
+  const o = owner.settings();
+  if (owner.isOwner(guild.client, userId)) return member; // you always get in
+  if (o.onlyMe) return null; // dashboard locked to the owner
+  if (o.blocked.includes(userId)) return null;
+  const ok = guild.ownerId === userId || member.permissions.has(PermissionFlagsBits.ManageGuild) || o.extraAccess.includes(userId);
   return ok ? member : null;
 }
 
@@ -65,7 +70,7 @@ function parseForm(body) {
 }
 
 /** Which fold-up section a save belongs to (so it opens again afterwards). */
-const sectionFor = (target) => (target.startsWith('schedule') ? 'schedule' : target.startsWith('command') ? 'commands' : target.startsWith('panel') ? 'panels' : target);
+const sectionFor = (target) => (target.startsWith('owner-') ? 'owner' : target.startsWith('feat-') ? target.split('--')[0] : target.startsWith('schedule') ? 'schedule' : target.startsWith('command') ? 'commands' : target.startsWith('panel') ? 'panels' : target);
 
 const flashes = new Map(); // session csrf -> { ok, text } shown once
 
@@ -91,7 +96,7 @@ function createHandler(client, config) {
     try {
       const url = new URL(req.url, config.base);
       const session = auth.getSession(req);
-      const user = session?.user;
+      const user = session?.user ? { ...session.user, isOwner: owner.isOwner(client, session.user.id) } : null;
 
       if (req.method === 'GET' && url.pathname === '/login') {
         const state = crypto.randomBytes(16).toString('base64url');
@@ -168,6 +173,17 @@ function createHandler(client, config) {
           return send(res, e.status, e.html);
         }
 
+        if (req.method === 'GET' && area === 'save' && target === 'backup') {
+          if (!owner.isOwner(client, user.id)) {
+            const e = pages.errorPage(user, 'Only the bot owner can download backups.', 403);
+            return send(res, e.status, e.html);
+          }
+          const body = JSON.stringify(require('./actions').backupOf(guild), null, 2);
+          const stamp = new Date().toISOString().slice(0, 10);
+          res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Disposition': `attachment; filename="pixel-bot-backup-${stamp}.json"`, 'Cache-Control': 'no-store' });
+          return res.end(body);
+        }
+
         if (req.method === 'POST' && (area === 'save' || (panel && action))) {
           const form = parseForm(await readBody(req));
           if (!auth.csrfOk(session, form.csrf)) {
@@ -175,7 +191,8 @@ function createHandler(client, config) {
             return send(res, e.status, e.html);
           }
           const result = panel ? await applyPanel(guild, member, panel, action, form) : await apply(guild, member, target, form);
-          flashes.set(session.csrf, { ...result, section: panel ? null : sectionFor(target) });
+          flashes.set(session.csrf, { ...result, section: panel || target === 'refresh' ? null : sectionFor(target) });
+          owner.audit({ userId: user.id, username: user.username, guildId: guild.id, what: panel ? `Panel "${panel.name}": ${action}` : target, ok: result.ok, text: result.text });
           console.log(`Dashboard: ${user.username} changed "${panel ? `panel ${panel.id} ${action}` : target}" in ${guild.name} (${result.ok ? 'saved' : result.text})`);
           const anchor = sectionFor(target);
           return redirect(res, result.redirect ?? `/g/${guild.id}#${anchor}`);

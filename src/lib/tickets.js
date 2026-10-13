@@ -184,13 +184,18 @@ function showPage(interaction, panel, index, pageIndex) {
 }
 
 // A ticket button (or dropdown choice) on a custom panel.
+/** Applications share the form flow with tickets, but end in a review instead of a channel. */
+const isApp = (panel) => panel.type === 'applications';
+const blockedFor = (interaction, panel, index) => (isApp(panel) ? require('./applications').blocked(interaction, panel, index) : atLimit(interaction, panel));
+const finish = (interaction, panel, index, answers) => (isApp(panel) ? require('./applications').submit(interaction, panel, index, answers) : createTicket(interaction, panel, index, answers));
+
 async function onPanelOpen(interaction, panel, index) {
   const item = panel.items[index];
-  const blocked = atLimit(interaction, panel);
+  const blocked = blockedFor(interaction, panel, index);
   if (blocked) return interaction.reply(ephemeral(blocked));
   if (!questions.list(item).length) {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    return createTicket(interaction, panel, index, []);
+    return finish(interaction, panel, index, []);
   }
   pending.delete(pendingKey(interaction, panel, index));
   return showPage(interaction, panel, index, 0);
@@ -232,9 +237,9 @@ async function onPanelSubmit(interaction, panel, index, pageIndex = 0) {
 
   pending.delete(key);
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  const blocked = atLimit(interaction, panel);
+  const blocked = blockedFor(interaction, panel, index);
   if (blocked) return interaction.editReply(blocked);
-  return createTicket(interaction, panel, index, answers);
+  return finish(interaction, panel, index, answers);
 }
 
 /** Lowercase, dash-separated text Discord accepts in a channel name. */
@@ -318,7 +323,7 @@ async function createTicket(interaction, panel, index, answers) {
       content: i === 0 ? [`${user}`, ...pings].join(' ') : undefined,
       allowedMentions: i === 0 ? { users: [user.id], roles: item.pingStaff ? staffRoles.map((role) => role.id) : [] } : { parse: [] },
       embeds: cards,
-      components: last ? [new ActionRowBuilder().addComponents(closeButton(panel))] : [],
+      components: last ? [new ActionRowBuilder().addComponents(closeButton(panel), ...[require('../features/tickettools').claimButton(guild.id)].filter(Boolean))] : [],
     });
   }
 

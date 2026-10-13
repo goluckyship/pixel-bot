@@ -58,6 +58,7 @@ module.exports = {
     },
     role: (interaction, roleId) => rolebuttons.onClick(interaction, roleId),
     pnl: (interaction, panelId, what, index, page) => panels.onInteraction(interaction, panelId, what, index, page),
+    app: (interaction, action, id, choice) => require('../../lib/applications').onButton(interaction, action, id, choice),
   },
 
   async autocomplete(interaction) {

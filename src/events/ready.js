@@ -36,6 +36,9 @@ module.exports = {
   once: true,
   async execute(client) {
     console.log(`\nPixel Bot is online as ${client.user.tag}`);
+    await client.application.fetch?.().catch(() => {}); // learns who owns the bot (for owner-only controls)
+    const ownerId = require('../lib/owner').ownerId(client);
+    if (ownerId) console.log(`Owner controls belong to Discord user ${ownerId}.`);
 
     // Tell Discord which slash commands exist. This runs on every start, so
     // adding or editing a command only takes a restart.
@@ -50,6 +53,7 @@ module.exports = {
     reminders.start(client);
     schedules.start(client);
     if (!client.dashboard) client.dashboard = dashboard.start(client);
+    if (!client.featureTimer) client.featureTimer = require('../lib/features').startTicks(client);
 
     for (const guild of client.guilds.cache.values()) {
       seedWelcome(guild);
@@ -81,6 +85,11 @@ module.exports = {
         PermissionFlagsBits.AttachFiles,
         PermissionFlagsBits.AddReactions,
         PermissionFlagsBits.MentionEveryone,
+        PermissionFlagsBits.MoveMembers, // AFK room
+        PermissionFlagsBits.ManageNicknames, // [AFK] nicknames, role restore
+        PermissionFlagsBits.ManageGuild, // invite tracking
+        PermissionFlagsBits.CreatePublicThreads, // suggestion threads
+        PermissionFlagsBits.ChangeNickname,
       ],
     });
 

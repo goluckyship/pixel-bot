@@ -15,12 +15,12 @@ function logEntry({ color, user, description, footer }) {
   return card;
 }
 
-/** Sends one entry. Never throws: a broken log must not break anything else. */
-async function sendLog(guild, entry) {
+/** Sends one entry (optionally pinging some roles). Never throws: a broken log must not break anything else. */
+async function sendLog(guild, entry, { roles = [] } = {}) {
   const channel = logChannel(guild);
   if (!channel) return false;
   try {
-    await channel.send({ embeds: [entry] });
+    await channel.send({ content: roles.length ? roles.map((id) => `<@&${id}>`).join(' ') : undefined, embeds: [entry], allowedMentions: { roles } });
     return true;
   } catch {
     return false;

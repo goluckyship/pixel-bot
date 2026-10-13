@@ -40,6 +40,18 @@ function save() {
   fs.renameSync(temp, FILE); // swap in one step so a crash can't leave half a file
 }
 
+let pending = null;
+/** Save within a few seconds, batching lots of small changes (like XP on every message). */
+function saveSoon() {
+  if (pending) return;
+  pending = setTimeout(() => {
+    pending = null;
+    save();
+  }, 5000);
+  pending.unref?.();
+}
+process.once('beforeExit', () => pending && save());
+
 /** The saved settings for one server (created the first time it's asked for). */
 function guild(guildId) {
   const g = (data.guilds[guildId] ??= {});
@@ -50,4 +62,4 @@ function guild(guildId) {
   return g;
 }
 
-module.exports = { data, save, guild };
+module.exports = { data, save, saveSoon, guild };

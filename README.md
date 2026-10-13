@@ -163,6 +163,16 @@ To switch it on:
 
 **Quick open:** go to your dashboard address followed by `/shortcut.url` (for example `http://node.wispbyte.com:1234/shortcut.url`) to download a desktop shortcut. Double-click it and you're straight in: you stay logged in for 60 days at a time, even when the bot restarts.
 
+## Everything else in the dashboard
+
+- **Applications:** staff (or any) applications with your own questions. Staff review them in a private channel with ✅ Accept, ❌ Decline and 👍 / 🛑 Veto votes; accepting can hand out roles, and applicants get a DM either way.
+- **Levels (voice time):** XP for time in voice chat (AFK, deafened and alone time doesn't count), a self-updating voice-hours leaderboard channel, `/rank`, `/leaderboard`, and level-reward roles.
+- **AFK:** deafened too long → moved to your AFK room, moved back the moment they undeafen. Plus `/afk` away notes.
+- **Suggestions** (`/suggest`), **Giveaways** (`/giveaway`), **Auto-replies**, **Member count channel**, **Send a message** as Pixel Bot, **Server stats**.
+- **Verification** button, **Anti-raid**, **Temp roles** (`/temprole`), **Role restore** for people who rejoin, **Invite tracking** (`/invites`), **Ticket tools** (`/ticket claim/add/remove/rename`).
+- **👑 Owner controls** (only the account that owns the bot sees these): maintenance mode, command switches, blocked users, dashboard access, change history, backup and restore.
+- **🔄 Refresh** at the top of the page shows channels and roles you just made in Discord.
+
 ## How the project is organised
 
 ```
@@ -180,6 +190,7 @@ pixel-bot/
     │   ├── moderation/
     │   └── utility/
     ├── events/           what happens when the bot starts, someone joins, etc.
+    ├── features/         one file per dashboard feature (levels, AFK, giveaways…)
     └── lib/              shared helpers (saving data, time parsing, colours)
 ```
 

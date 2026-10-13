@@ -14,7 +14,8 @@ const client = new Client({
     GatewayIntentBits.MessageContent, // what those messages say (word filter, automod, staff log)
     GatewayIntentBits.GuildModeration, // bans (staff log)
     GatewayIntentBits.GuildExpressions ?? GatewayIntentBits.GuildEmojisAndStickers, // emoji changes (staff log)
-    GatewayIntentBits.GuildVoiceStates, // voice channel moves (staff log)
+    GatewayIntentBits.GuildVoiceStates, // voice channel moves (staff log, voice levels, AFK)
+    GatewayIntentBits.GuildInvites, // invites being made or deleted (invite tracking)
   ],
   // Safety net: Pixel Bot never pings @everyone, @here or roles by accident.
   allowedMentions: { parse: [], repliedUser: true },

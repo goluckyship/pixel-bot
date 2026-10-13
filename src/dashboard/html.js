@@ -125,13 +125,25 @@ details.more>summary::before{content:"+";font:600 16px var(--head);line-height:1
 details.more[open]>summary::before{content:"−"}
 details.more>div{padding:6px 0 0 4px;border-left:3px solid var(--soft);margin-left:14px;padding-left:16px}
 .welcomebar{display:flex;align-items:center;gap:16px;margin:4px 0 22px}.welcomebar .sub{margin:0}
+form.refresh{margin-left:auto;flex:none}form.refresh button{margin:0;padding:8px 16px;font-size:14px}
 .bigemoji{flex:none;font-size:40px}
 .removebox{margin-top:14px;padding-top:6px;border-top:2px dashed var(--line)}
 .center{display:flex;align-items:flex-end;padding-bottom:4px}
 .qrow.blank{background:transparent;opacity:.85}
 .qrow textarea{min-height:64px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:0 0 16px}.stats div{background:var(--soft);border-radius:calc(var(--r) * .6);padding:10px 12px;text-align:center}
+.stats b{display:block;font:600 20px var(--head)}.stats small{color:var(--muted);font-weight:600}
+@media (max-width:640px){.stats{grid-template-columns:repeat(2,1fr)}}
+.crown{font-size:13px;padding:1px 8px;border-radius:999px;background:color-mix(in srgb,#f5c542 30%,var(--card));color:var(--text);font-weight:700}
+.help.small{font-size:13px;margin:4px 0 0}
+.bars{display:grid;grid-template-columns:repeat(14,1fr);gap:2px;height:130px;align-items:end;padding:6px 0 0;border-bottom:1px solid var(--line);margin-bottom:26px}
+.bar{position:relative;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center}
+.bar span{display:block;width:70%;max-width:20px;min-height:2px;background:var(--brand);border-radius:4px 4px 0 0}
+.bar:hover span{background:var(--pink)}
+.bar small{position:absolute;bottom:-22px;font-size:11px;color:var(--muted);white-space:nowrap}
+@media (max-width:640px){.bar:nth-child(even) small{display:none}}
 .postbox{border-color:color-mix(in srgb,var(--pink) 50%,var(--line))}
-@media (max-width:640px){.foldbody{padding:16px}.welcomebar .heart{display:none}}
+@media (max-width:640px){.foldbody{padding:16px}.welcomebar .heart{display:none}.welcomebar{flex-wrap:wrap}form.refresh{margin-left:0}}
 `;
 
 const FONTS = {
@@ -221,7 +233,7 @@ function page({ title, user, body }) {
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito:wght@400;600;700&display=swap">
 <style>${CSS}${mode}${themeCss(theme)}</style></head><body>
-<header><a class="brand" href="/">${pixelHeart(28)}<b>${esc(name)}</b></a>${user ? `<span class="who">${user.avatar ? `<img src="${esc(user.avatar)}" alt="">` : ''}${esc(user.username)} <a href="/logout">Log out</a></span>` : ''}</header>
+<header><a class="brand" href="/">${pixelHeart(28)}<b>${esc(name)}</b></a>${user ? `<span class="who">${user.avatar ? `<img src="${esc(user.avatar)}" alt="">` : ''}${user.isOwner ? '<span class="crown">👑 Owner</span>' : ''}${esc(user.username)} <a href="/logout">Log out</a></span>` : ''}</header>
 <main>${body}</main></body></html>`;
 }
 

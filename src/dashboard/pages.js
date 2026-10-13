@@ -10,6 +10,9 @@ const { findRole, findChannel, findCategory } = require('../lib/resolve');
 const panels = require('../lib/panels');
 const customCommands = require('../lib/customcommands');
 const appearance = require('../lib/appearance');
+const features = require('../lib/features');
+const fieldsUi = require('./fields');
+const owner = require('../lib/owner');
 
 const opts = (record) => Object.entries(record).map(([id, name]) => ({ id, name: typeof name === 'string' ? name : name.name }));
 
@@ -57,6 +60,10 @@ function fold({ id, emoji, title, status, help = '', body, open = false, flash =
 <div class="foldbody">${flash ? flashBox(flash) : ''}${help ? `<p class="help">${help}</p>` : ''}${body}</div></details>`;
 }
 
+/** The 🔄 Refresh button: re-reads channels and roles from Discord. */
+const refreshButton = (guildId, csrf, back) =>
+  `<form class="refresh" method="post" action="/g/${esc(guildId)}/save/refresh">${hidden('csrf', csrf)}${hidden('back', back)}<button class="secondary" type="submit" title="Show channels and roles you just made in Discord">🔄 Refresh</button></form>`;
+
 /** Extra settings most people never need, tucked away. */
 const more = (inner, label = 'More options') => `<details class="more"><summary>${esc(label)}</summary><div>${inner}</div></details>`;
 
@@ -72,7 +79,7 @@ const chan = (guild, id) => (id && guild.channels.cache.get(id) ? `#${esc(guild.
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
 function panelsCard(guild, csrf, opened, flash) {
-  const all = panels.list(guild.id);
+  const all = panels.list(guild.id).filter((p) => p.type !== 'applications');
   const rows = all.map((p) => {
     const where = p.channelId ? `in ${chan(guild, p.channelId) || '#deleted-channel'}` : 'not posted yet';
     const issues = panels.problems(guild, p).length;
@@ -82,12 +89,37 @@ function panelsCard(guild, csrf, opened, flash) {
   return fold({
     id: 'panels', emoji: '🎟️', title: 'Panels', open: opened === 'panels', flash,
     status: all.length ? plural(all.length, 'panel') : off('None yet'),
-    help: 'Messages with buttons members click: role panels hand out roles, ticket panels open private tickets.',
+    help: 'Messages with buttons members click: role panels hand out roles, ticket panels open private tickets. Staff applications have their own section below.',
     body: `<div class="rows">${rows || '<p class="empty">No panels yet. Make your first one below.</p>'}</div>
 <form method="post" action="/g/${esc(guild.id)}/save/panel-new">${hidden('csrf', csrf)}
 <div class="grid2"><div><label>Name it</label>${input('name', '', { placeholder: 'Colour roles, Support…' })}</div>
 <div><label>What should it do?</label>${select('type', [{ id: 'roles', name: '🏷️ Hand out roles' }, { id: 'tickets', name: '🎟️ Open tickets' }], 'roles', { blank: null })}</div></div>
 <button type="submit">Make a panel</button></form>`,
+  });
+}
+
+function applicationsCard(guild, csrf, opened, flash) {
+  const all = panels.list(guild.id).filter((p) => p.type === 'applications');
+  const apps = Object.values(require('../lib/applications').store(guild.id).items);
+  const pending = apps.filter((a) => a.status === 'pending');
+  const rows = all.map((p) => {
+    const where = p.channelId ? `in ${chan(guild, p.channelId) || '#deleted-channel'}` : 'not posted yet';
+    const issues = panels.problems(guild, p).length;
+    const waiting = pending.filter((a) => a.panelId === p.id).length;
+    return `<a class="row" href="/g/${esc(guild.id)}/panel/${p.id}"><span class="emoji" aria-hidden="true">📝</span>
+<span class="t"><b>${esc(p.name)}</b><small>${p.items.map((it) => esc(it.label)).join(', ') || 'No application types yet'}, ${where}${waiting ? `, ${waiting} waiting` : ''}${issues ? ' · needs a fix' : ''}</small></span><span class="go">Edit</span></a>`;
+  }).join('');
+  const recent = apps.slice().sort((a, b) => b.at - a.at).slice(0, 8).map((a) => `<div class="row"><span class="emoji" aria-hidden="true">${a.status === 'pending' ? '⏳' : a.status === 'accepted' ? '✅' : '❌'}</span>
+<span class="t"><b>${esc(a.kind)} #${a.id}: ${esc(guild.members.cache.get(a.userId)?.displayName ?? a.tag)}</b><small>${esc(require('../lib/applications').STATUS[a.status].text)}, ${esc(new Date(a.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))} · 👍 ${a.yes.length} 🛑 ${a.veto.length}</small></span></div>`).join('');
+  return fold({
+    id: 'applications', emoji: '📝', title: 'Applications', open: opened === 'applications', flash,
+    status: pending.length ? on(`${plural(pending.length, 'application')} waiting`) : all.length ? plural(all.length, 'panel') : off('None yet'),
+    help: 'Staff, partner or any other applications. Members fill in your questions, staff review them in a private channel with Accept, Decline and 👍 / 🛑 Veto votes, and the applicant gets a DM with the result.',
+    body: `<div class="rows">${rows || '<p class="empty">No application panels yet. Make one below.</p>'}</div>
+<form method="post" action="/g/${esc(guild.id)}/save/panel-new">${hidden('csrf', csrf)}${hidden('type', 'applications')}
+<label>Name it</label>${input('name', '', { placeholder: 'Staff applications' })}
+<button type="submit">Make an application panel</button></form>
+${recent ? `<h2 class="minor">Latest applications</h2><div class="rows">${recent}</div>` : ''}`,
   });
 }
 
@@ -121,6 +153,50 @@ ${more(`${toggle('asCard', c.asCard, 'Reply with a styled card')}
   });
 }
 
+/** 👑 Only shown to the bot owner. */
+function ownerCard(guild, user, csrf, opened, flash) {
+  const client = guild.client;
+  const o = owner.settings();
+  const up = process.uptime();
+  const uptime = up > 86400 ? `${Math.floor(up / 86400)}d ${Math.floor((up % 86400) / 3600)}h` : `${Math.floor(up / 3600)}h ${Math.floor((up % 3600) / 60)}m`;
+  const mem = Math.round(process.memoryUsage().rss / 1048576);
+  const ping = client?.ws?.ping;
+  const commands = [...(client?.commands?.keys?.() ?? [])].sort().map((name) => ({ id: name, name: `/${name}` }));
+  const enabled = commands.map((c) => c.id).filter((name) => !o.disabledCommands.includes(name));
+  const nameOf = (id) => esc(guild.members.cache.get(id)?.displayName ?? guild.members.cache.get(id)?.user?.username ?? id);
+  const history = o.audit.filter((a) => !a.guildId || a.guildId === guild.id).slice(0, 25).map((a) => `<div class="row"><span class="emoji" aria-hidden="true">${a.ok ? '📝' : '⚠️'}</span><span class="t"><b>${esc(a.username)}: ${esc(a.what)}</b><small>${esc(new Date(a.at).toLocaleString('en-US', { timeZone: settings.get(guild.id).timezone, dateStyle: 'medium', timeStyle: 'short' }))} · ${esc(a.text ?? '')}</small></span></div>`).join('');
+  return fold({
+    id: 'owner', emoji: '👑', title: 'Owner controls', open: opened === 'owner', flash,
+    status: o.maintenance ? '<span class="pill">🛠️ Maintenance mode on</span>' : on(`Online ${uptime}, ${ping >= 0 ? `${ping}ms` : 'ping —'}`),
+    help: 'Only you can see this section, because your Discord account owns Pixel Bot.',
+    body: `<div class="stats"><div><b>${uptime}</b><small>online for</small></div><div><b>${ping >= 0 ? `${ping}ms` : '—'}</b><small>ping</small></div><div><b>${mem} MB</b><small>memory</small></div><div><b>${commands.length}</b><small>commands</small></div></div>
+${form(guild.id, 'owner-controls', csrf, `${toggle('maintenance', o.maintenance, 'Maintenance mode (only you can use Pixel Bot)')}
+<label>What everyone else sees</label>${input('maintenanceText', o.maintenanceText)}
+${more(`<p class="help">Untick a command to switch it off for everyone but you.</p>${checks('commands', commands, enabled)}`, `Command switches${o.disabledCommands.length ? ` (${o.disabledCommands.length} off)` : ''}`)}
+${more(`<p class="help">People who can't use Pixel Bot at all. Paste Discord user IDs, one per line (right-click someone → Copy User ID).</p>${textarea('blocked', o.blocked.join('\n'), { placeholder: '123456789012345678' })}${o.blocked.length ? `<p class="help">Blocked now: ${o.blocked.map(nameOf).join(', ')}</p>` : ''}`, `Blocked users${o.blocked.length ? ` (${o.blocked.length})` : ''}`)}`)}
+${more(form(guild.id, 'owner-access', csrf, `${toggle('onlyMe', o.onlyMe, 'Only I can use the dashboard')}
+<label>Let these people in too, even without Manage Server (user IDs, one per line)</label>${textarea('extraAccess', o.extraAccess.join('\n'), { placeholder: '123456789012345678' })}${o.extraAccess.length ? `<p class="help">Extra access: ${o.extraAccess.map(nameOf).join(', ')}</p>` : ''}`) + form(guild.id, 'owner-logout', csrf, '', 'Log everyone out of the dashboard'), 'Dashboard access')}
+${more(`<p class="help">A backup has every setting for this server: panels, applications, levels, custom commands, all of it.</p><a class="button" href="/g/${esc(guild.id)}/save/backup">Download a backup</a>
+${form(guild.id, 'owner-restore', csrf, `<label>Restore: open a backup file in Notepad, copy everything, and paste it here</label>${textarea('backup', '', { placeholder: '{ "pixelBotBackup": 1, …' })}<label class="toggle"><input type="checkbox" name="confirm" value="1"> Yes, replace this server's settings with the backup</label>`, 'Restore backup')}`, 'Backup and restore')}
+${more(history ? `<div class="rows">${history}</div>` : '<p class="empty">No dashboard changes yet.</p>', 'Change history')}`,
+  });
+}
+
+/** A fold-up section for one feature module, built from its settings list. */
+function featureFold(feature, guild, user, csrf, opened, flash) {
+  const cfg = features.config(guild.id, feature.id);
+  const id = `feat-${feature.id}`;
+  const status = cfg.enabled === false && feature.fields?.some((f) => f.key === 'enabled') ? off() : (feature.status?.(cfg, guild, { on, off, chan, plural }) ?? on('On'));
+  const ctx = { guild, user, csrf, cfg, esc, hidden, more, on, off, chan, plural, form: (action, inner, button) => form(guild.id, `${id}--${action}`, csrf, inner, button) };
+  const extra = feature.dashboard ? feature.dashboard(ctx) : '';
+  const settingsForm = feature.fields?.length ? form(guild.id, id, csrf, fieldsUi.renderAll(feature.fields, cfg, guild, more)) : '';
+  return fold({
+    id, emoji: feature.emoji, title: feature.title, open: opened === id, flash, status,
+    help: feature.help ?? '',
+    body: (feature.dashboardFirst ? extra + settingsForm : settingsForm + extra),
+  });
+}
+
 function guildPage({ guild, user, csrf, flash, problems, editingCommand }) {
   const s = settings.get(guild.id);
   const g = db.guild(guild.id);
@@ -134,6 +210,7 @@ function guildPage({ guild, user, csrf, flash, problems, editingCommand }) {
   const opened = flash?.section ?? null;
   const flashFor = (id) => (flash && flash.section === id ? flash : null);
   const roleName = (entry) => esc(findRole(guild, entry)?.name ?? entry);
+  const group = (name) => features.all().filter((f) => (f.group ?? 'community') === name).map((f) => featureFold(f, guild, user, csrf, opened, flashFor(`feat-${f.id}`))).join('\n');
 
   const scheduled = schedules.list(guild.id).slice().sort((a, b) => a.nextAt - b.nextAt);
   const scheduleRows = scheduled.map((item) => `<div class="row"><span class="emoji" aria-hidden="true">⏰</span><span class="t"><b>${esc(new Date(item.nextAt).toLocaleString('en-US', { timeZone: s.timezone, dateStyle: 'medium', timeStyle: 'short' }))}${item.repeat !== 'none' ? `, then ${esc(item.repeat)}` : ''}</b>
@@ -142,12 +219,15 @@ function guildPage({ guild, user, csrf, flash, problems, editingCommand }) {
   const autoOn = Object.entries(automod.FEATURES).filter(([key]) => rules[key]).length;
 
   const body = `
-<div class="welcomebar">${pixelHeart(44, 'beat')}<div><h1>${esc(guild.name)}</h1><p class="sub">Tap a section to open it. Everything saves the moment you press Save.</p></div></div>
+<div class="welcomebar">${pixelHeart(44, 'beat')}<div><h1>${esc(guild.name)}</h1><p class="sub">Tap a section to open it. Everything saves the moment you press Save.</p></div>${refreshButton(guild.id, csrf, `/g/${guild.id}`)}</div>
 ${flash && !flash.section ? flashBox(flash) : ''}
 ${problems.length ? `<div class="card problems"><h2>💡 A few things to check</h2><ul>${problems.map((p) => `<li>${esc(p.replace(/\*\*/g, '').replace(/<@&(\d+)>/g, (m, id) => guild.roles.cache.get(id)?.name ?? 'a role'))}</li>`).join('')}</ul></div>` : ''}
 
+${owner.isOwner(guild.client, user.id) ? ownerCard(guild, user, csrf, opened, flashFor('owner')) : ''}
+
 <h2 class="group">Fun and community</h2>
 ${panelsCard(guild, csrf, opened, flashFor('panels'))}
+${applicationsCard(guild, csrf, opened, flashFor('applications'))}
 ${commandsCard(guild, csrf, roles, editingCommand, opened, flashFor('commands'))}
 
 ${fold({
@@ -181,8 +261,16 @@ ${more(`${toggle('plain', g.goodbye?.plain, 'Plain text instead of a card')}
 ${scheduledCard()}
 
 ${appearanceCard(guild, user, csrf, opened === 'appearance', flashFor('appearance'))}
+${group('community')}
+
+<h2 class="group">Levels</h2>
+${group('levels')}
+
+<h2 class="group">Channels and automation</h2>
+${group('automation')}
 
 <h2 class="group">Staff and safety</h2>
+${group('safety')}
 ${fold({
     id: 'automod', emoji: '🛡️', title: 'Automod', open: opened === 'automod', flash: flashFor('automod'),
     status: autoOn ? on(`${autoOn} of ${Object.keys(automod.FEATURES).length} on`) : off(),
@@ -251,11 +339,11 @@ ${more(`<label>Repeat</label>${select('repeat', [{ id: 'none', name: 'Just once'
 
 function appearanceCard(guild, user, csrf, open, flash) {
   const b = appearance.settings();
-  const owner = guild.ownerId === user.id;
+  const isBotOwner = owner.isOwner(guild.client, user.id);
   const color = Number.isInteger(b.color) ? `#${b.color.toString(16).padStart(6, '0')}` : '';
   const t = b.theme ?? {};
   const statusText = b.activityType === 'None' || !b.activityText ? 'No status' : `${appearance.ACTIVITIES[b.activityType] ?? ''} ${b.activityText}`.trim();
-  const botWide = owner
+  const botWide = isBotOwner
     ? `<div class="grid2"><div><label>Status</label>${select('activityType', opts(appearance.ACTIVITIES), b.activityType, { blank: null })}</div>
 <div><label>Status text</label>${input('activityText', b.activityText, { placeholder: '/help' })}</div></div>
 ${more(`<div class="grid2"><div><label>Online dot</label>${select('status', opts(appearance.STATUSES), b.status, { blank: null })}</div>
@@ -268,7 +356,7 @@ ${more(`<p class="help">How this dashboard looks for everyone. Text colours adju
 <div><label>Font</label>${select('themeFont', opts(FONTS), t.font ?? 'system', { blank: null })}</div>
 <div><label>Corners</label>${select('themeCorners', opts(CORNERS), t.corners ?? 'soft', { blank: null })}</div></div>
 <label>Dashboard name</label>${input('themeTitle', t.title ?? '', { placeholder: 'Pixel Bot dashboard' })}`, 'Dashboard look')}`
-    : '<p class="muted">Only the server owner can change the status, colours and dashboard look.</p>';
+    : '<p class="muted">Only the bot owner can change the status, colours and dashboard look.</p>';
   return fold({
     id: 'appearance', emoji: '🎨', title: 'Appearance', open, flash,
     status: esc(statusText),
@@ -304,6 +392,7 @@ function panelPage({ guild, user, csrf, flash, panel }) {
   const categories = channelOptions(guild, [ChannelType.GuildCategory]);
   const styles = opts(panels.STYLES);
   const isRoles = panel.type === 'roles';
+  const isApps = panel.type === 'applications';
   const blanks = isRoles ? 3 : 1;
   const slots = [...panel.items, ...Array.from({ length: blanks }, () => null)];
   const issues = panels.problems(guild, panel);
@@ -312,12 +401,27 @@ function panelPage({ guild, user, csrf, flash, panel }) {
     const it = item ?? panels.blankItem(panel.type);
     const p = `item${i}_`;
     const heading = item
-      ? `${esc(it.emoji)} ${esc(panels.itemLabel(guild, panel, it))}`
-      : `<span class="muted">+ Add ${isRoles ? 'a role' : 'another kind of ticket'}</span>`;
+      ? `${esc(it.emoji)} ${esc(panels.itemLabel(guild, panel, it))}${isApps && it.open === false ? ' <span class="pill">Closed</span>' : ''}`
+      : `<span class="muted">+ Add ${isRoles ? 'a role' : isApps ? 'another kind of application' : 'another kind of ticket'}</span>`;
     const look = `<div class="grid3"><div><label>Button text</label>${input(`${p}label`, item ? it.label : '', { placeholder: isRoles ? 'the role name' : 'Create ticket' })}</div>
 <div><label>Emoji</label>${input(`${p}emoji`, item ? it.emoji : '', { placeholder: '🎮 or :pixel:' })}</div>
 <div><label>Button colour</label>${select(`${p}style`, styles, it.style, { blank: null })}</div></div>`;
-    const body = isRoles
+    const appBody = () => `${look}
+${toggle(`${p}open`, it.open !== false, 'Open for applications')}
+<div class="grid2"><div><label>Review channel (staff only)</label>${select(`${p}reviewChannel`, texts, it.reviewChannel ?? '', { blank: '— pick a channel —' })}</div>
+<div class="center">${toggle(`${p}pingReviewers`, it.pingReviewers, 'Ping reviewers for new applications')}</div></div>
+<label>Who can review, vote and accept (none ticked = server managers)</label>${checks(`${p}reviewers`, roles, it.reviewers ?? [])}
+<label>Roles to give when accepted</label>${checks(`${p}acceptRoles`, roles, it.acceptRoles ?? [])}
+<h2 class="minor">Questions</h2><p class="help">Add as many as you like. Discord shows 5 at a time, so longer forms get a Continue button. Clear a question's text to remove it.</p>
+${questionRows(p, item ? questions.list(it) : questions.list(panels.blankItem('applications')))}
+${more(`<label>Message after they apply</label>${textarea(`${p}thanks`, it.thanks ?? '')}
+<label>DM when accepted ({application} and {server} work)</label>${textarea(`${p}acceptMessage`, it.acceptMessage ?? '')}
+<label>DM when declined</label>${textarea(`${p}declineMessage`, it.declineMessage ?? '')}
+<div class="grid2"><div><label>Days before someone declined can apply again (0 = straight away)</label><input type="number" name="${esc(p)}cooldownDays" min="0" step="1" value="${esc(it.cooldownDays ?? 7)}"></div>
+<div><label>Card colour</label>${colorInput(`${p}color`, it.color, { defaultText: 'Same as the panel' })}</div></div>
+<label>Roles to take away when accepted</label>${checks(`${p}removeRoles`, roles, it.removeRoles ?? [])}
+<label>Short description (shown in the dropdown)</label>${input(`${p}description`, item ? it.description : '')}`, 'Messages, cooldown and more')}`;
+    const body = isApps ? appBody() : isRoles
       ? `<label>Role</label>${select(`${p}role`, roles, it.roleId, { blank: '— pick a role —' })}${look}
 ${more(`<label>Short description (shown in the dropdown and the role list)</label>${input(`${p}description`, item ? it.description : '')}`)}`
       : `${look}
@@ -334,9 +438,9 @@ ${toggle(`${p}pingStaff`, it.pingStaff, 'Ping the staff when a ticket opens')}`,
 ${item ? `<div class="removebox">${toggle(`${p}remove`, false, `Remove this ${isRoles ? 'role' : 'ticket type'}`)}</div>` : ''}</details>`;
   }).join('');
 
-  const body = `<p><a href="/g/${esc(guild.id)}#panels">← Back to all settings</a></p>
-<div class="welcomebar"><span class="bigemoji" aria-hidden="true">${isRoles ? '🏷️' : '🎟️'}</span><div><h1>${esc(panel.name)}</h1>
-<p class="sub">${panel.channelId ? `Posted in ${chan(guild, panel.channelId) || '#deleted-channel'}. Saving updates it for you.` : 'Not posted yet. Fill it in, pick a channel at the bottom and press Save and post.'}</p></div></div>
+  const body = `<p><a href="/g/${esc(guild.id)}#${isApps ? 'applications' : 'panels'}">← Back to all settings</a></p>
+<div class="welcomebar"><span class="bigemoji" aria-hidden="true">${isRoles ? '🏷️' : isApps ? '📝' : '🎟️'}</span><div><h1>${esc(panel.name)}</h1>
+<p class="sub">${panel.channelId ? `Posted in ${chan(guild, panel.channelId) || '#deleted-channel'}. Saving updates it for you.` : 'Not posted yet. Fill it in, pick a channel at the bottom and press Save and post.'}</p></div>${refreshButton(guild.id, csrf, `/g/${guild.id}/panel/${panel.id}`)}</div>
 ${flash ? flashBox(flash) : ''}
 ${issues.length ? `<div class="card problems"><h2>💡 A few things to check</h2><ul>${issues.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></div>` : ''}
 <form method="post" action="/g/${esc(guild.id)}/panel/${panel.id}/save">${hidden('csrf', csrf)}${hidden('slots', slots.length)}
@@ -353,13 +457,13 @@ ${more(`<label>Panel name (only staff see this)</label>${input('name', panel.nam
 <div><label>Small image link</label>${input('thumbnail', panel.thumbnail, { placeholder: 'https://…' })}</div></div>
 ${isRoles
     ? toggle('listRoles', panel.listRoles, 'List the roles under the text')
-    : `<div class="grid2"><div><label>Open tickets one member can have (0 = no limit)</label><input type="number" name="maxOpen" min="0" step="1" value="${esc(panel.maxOpen ?? 1)}"></div>
+    : isApps ? '' : `<div class="grid2"><div><label>Open tickets one member can have (0 = no limit)</label><input type="number" name="maxOpen" min="0" step="1" value="${esc(panel.maxOpen ?? 1)}"></div>
 <div><label>Transcripts go to</label>${select('transcriptChannel', texts, findChannel(guild, panel.transcriptChannel)?.id ?? '', { blank: '— the default —' })}</div></div>
 <div class="grid3"><div><label>Close button text</label>${input('closeLabel', panel.closeLabel ?? 'Close ticket')}</div>
 <div><label>Close button emoji</label>${input('closeEmoji', panel.closeEmoji ?? '🔒', { placeholder: 'none' })}</div>
 <div><label>Close button colour</label>${select('closeStyle', styles, panel.closeStyle ?? 'red', { blank: null })}</div></div>`}`)}
 </section>
-<section class="card"><h2>${isRoles ? '🏷️ Roles' : '🎟️ Kinds of ticket'}</h2><p class="help">${isRoles ? 'Each role becomes a button. Members click again to take it off.' : 'Each kind becomes its own button, with its own questions and staff.'} Need more slots? Press Save and new ones appear.</p>
+<section class="card"><h2>${isRoles ? '🏷️ Roles' : isApps ? '📝 Kinds of application' : '🎟️ Kinds of ticket'}</h2><p class="help">${isRoles ? 'Each role becomes a button. Members click again to take it off.' : isApps ? 'Each kind (Staff, Partner…) becomes its own Apply button, with its own questions, reviewers and roles.' : 'Each kind becomes its own button, with its own questions and staff.'} Need more slots? Press Save and new ones appear.</p>
 ${itemHtml}</section>
 <section class="card postbox"><h2>📮 Post it</h2>
 <label>Channel</label>${select('channel', texts, panel.channelId ?? '', { blank: '— pick a channel —' })}
