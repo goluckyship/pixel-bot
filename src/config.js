@@ -12,6 +12,10 @@ module.exports = {
   // The Pixel Bassment's server ID.
   homeServer: '1557979850625515570',
 
+  // Your own web addresses for the dashboard (on top of DASHBOARD_URL / DASHBOARD_ALIASES).
+  // Each one also needs "<address>/callback" added under OAuth2 → Redirects in the Developer Portal.
+  siteAddresses: ['https://pixelbotstudio.net', 'https://www.pixelbotstudio.net'],
+
   // Roles every new member gets when they join.
   autoroles: ['Pixel'],
 

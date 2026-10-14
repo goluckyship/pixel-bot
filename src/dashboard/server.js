@@ -38,7 +38,9 @@ function settingsFromEnv() {
   const port = Number(process.env.SERVER_PORT || process.env.PORT || url.port || 3000);
   // Extra addresses that also reach the dashboard (like a free pixelbot.wisp.uno
   // address). Each needs its own "/callback" redirect in the Developer Portal.
-  const aliases = String(process.env.DASHBOARD_ALIASES ?? '').split(/[\s,]+/).map((a) => a.trim().replace(/\/+$/, '')).filter((a) => /^https?:\/\/[^/\s]+$/i.test(a));
+  let fromConfig = [];
+  try { fromConfig = require('../config').siteAddresses ?? []; } catch {}
+  const aliases = [...new Set([...String(process.env.DASHBOARD_ALIASES ?? '').split(/[\s,]+/), ...fromConfig].map((a) => String(a).trim().replace(/\/+$/, '')).filter((a) => /^https?:\/\/[^/\s]+$/i.test(a) && a !== base))];
   return { base, secret, port, secure: url.protocol === 'https:', aliases };
 }
 
