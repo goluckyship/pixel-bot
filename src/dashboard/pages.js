@@ -67,7 +67,7 @@ function linkLogin(token) {
   });
 }
 
-function account(user, csrf, { hasAccess, count, max, used }) {
+function account(user, csrf, { hasAccess, count, max, used, devices = 1 }) {
   const body = !hasAccess
     ? '<p class="sub">Backup login links are only for people who can use the dashboard.</p>'
     : `<p class="sub">A backup link logs you in once, even if Discord is blocked or you can't log in. Save it somewhere only you can see, like your notes app or a password manager.</p>
@@ -78,7 +78,10 @@ ${count ? `<form method="post" action="/account/revoke"><input type="hidden" nam
   return page({
     title: 'Backup login',
     user,
-    body: `<div class="card">${used ? '<div class="flash ok">You\'re in! That backup link is used up now. Make a new one below if you want another spare.</div>' : ''}<h1>🔑 Backup login links</h1>${body}<p><a class="linky" href="/">Back to the dashboard</a></p></div>`,
+    body: `<div class="card">${used ? '<div class="flash ok">You\'re in! That backup link is used up now. Make a new one below if you want another spare.</div>' : ''}<h1>🔑 Login and devices</h1><h2 class="minor">Backup login links</h2>${body}<h2 class="minor" style="margin-top:22px">💻 Devices</h2><p>You're logged in on <b>${devices}</b> device${devices === 1 ? '' : 's'} (computers, phones and browsers).</p>
+<form method="post" action="/account/logout-all"><input type="hidden" name="csrf" value="${esc(csrf)}"><button type="submit" class="danger">Log out everywhere</button></form>
+<p class="help">Use this if you lost a phone or logged in on a school or library computer.</p>
+<p><a class="linky" href="/">Back to the dashboard</a></p></div>`,
   });
 }
 

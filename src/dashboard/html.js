@@ -73,6 +73,11 @@ table.src{width:100%;border-collapse:collapse;font:13px/1.55 ui-monospace,SFMono
 .mc{margin-top:4px;line-height:1.5;overflow-wrap:anywhere}.mc pre,.embed pre{white-space:pre-wrap;background:var(--sy-code);padding:8px;border-radius:8px}.mc code,.embed code{background:color-mix(in srgb,var(--text) 10%,transparent);padding:1px 5px;border-radius:5px}.mention{background:color-mix(in srgb,#5865f2 22%,transparent);color:color-mix(in srgb,#5865f2 70%,var(--text));padding:0 3px;border-radius:4px;font-weight:600}.big{font-size:1.25em}
 .embed{margin-top:8px;padding:10px 14px;border-left:4px solid;border-radius:6px;background:color-mix(in srgb,var(--text) 5%,var(--card));max-width:560px;display:grid;gap:6px;overflow-wrap:anywhere}.embed .et{font-size:15.5px}.efs{display:flex;flex-wrap:wrap;gap:10px}.ef{flex:1 1 100%}.ef.inline{flex:1 1 30%}.ef b{display:block;font-size:13.5px}
 .mbtns{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}.mbtn{padding:6px 14px;border-radius:8px;background:color-mix(in srgb,var(--text) 10%,transparent);font-weight:600;font-size:13.5px;opacity:.75;cursor:not-allowed}
+.herobtns{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}.herobtns .button{margin-top:6px}.loginalt{margin-top:16px;color:var(--muted)}
+.features{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:10px 0 18px}.features .card{padding:16px}.features p{margin:6px 0 0;color:var(--muted);font-size:14px}
+.pcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:16px}.pcard{display:grid;gap:8px;padding:10px;border:2px solid var(--line);border-radius:14px;cursor:pointer;font-weight:700;font-size:13.5px}.pcard input{position:absolute;opacity:0;pointer-events:none}.pcard:has(input:checked){border-color:var(--brand);box-shadow:0 0 0 3px color-mix(in srgb,var(--brand) 25%,transparent)}.pv{display:flex;height:34px;border-radius:9px;overflow:hidden;border:1px solid var(--line)}.pv i{flex:1}
+.row2{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.guestform{max-width:360px;margin:0 auto;text-align:left;display:grid;gap:6px}.guestform input{width:100%}.guestform button{margin-top:12px;justify-content:center}
+@media (pointer:coarse){button,.button,select,input{min-height:44px}.mi{padding:12px 10px}}
 a.linky{display:inline-block;margin-top:14px;color:var(--brand);font-weight:700}.code{font:600 clamp(40px,12vw,64px) var(--head);letter-spacing:.12em;margin:18px 0 6px;padding:14px 26px;border-radius:22px;background:color-mix(in srgb,var(--brand) 12%,transparent);display:inline-block}.steps{text-align:left;display:inline-block;margin:10px auto 0;line-height:1.8}
 button:hover,.button:hover{transform:translateY(-1px);box-shadow:0 5px 0 color-mix(in srgb,var(--brand) 60%,#000)}
 button:active,.button:active{transform:translateY(3px);box-shadow:0 1px 0 color-mix(in srgb,var(--brand) 60%,#000)}
@@ -180,6 +185,9 @@ const FONTS = {
 };
 const CORNERS = { soft: { name: 'Soft and round (default)', px: null }, round: { name: 'Extra squishy', px: 30 }, square: { name: 'Neat and square', px: 6 } };
 const MODES = { auto: 'Match my device', light: 'Always light', dark: 'Always dark' };
+const TEXT_SIZES = { normal: { name: 'Normal', zoom: null }, small: { name: 'Smaller', zoom: 0.9 }, large: { name: 'Bigger', zoom: 1.12 }, huge: { name: 'Biggest', zoom: 1.25 } };
+const MOTIONS = { full: 'Animations on', less: 'Fewer animations' };
+const WIDTHS = { normal: { name: 'Normal', px: null }, wide: { name: 'Wide', px: 1180 }, narrow: { name: 'Narrow', px: 720 } };
 
 const hex = (v) => (/^#[0-9a-f]{6}$/i.test(v ?? '') ? v.toLowerCase() : null);
 /** Readable text colour (near-black or white) on top of a colour. */
@@ -219,6 +227,11 @@ function themeCss(theme = {}) {
     rootVars.push(`--bg:${back};--card:${base};--text:${text};--muted:${mix(text, base, 0.35)};--line:${mix(base, text, 0.16)};--field:${mix(base, dark ? '#000000' : '#ffffff', 0.25)}`);
   }
   if (rootVars.length) parts.push(`:root{${rootVars.join(';')}}`);
+  const zoom = TEXT_SIZES[theme.textSize]?.zoom;
+  if (zoom) parts.push(`body{zoom:${zoom}}`);
+  if (theme.motion === 'less') parts.push('*,*::before,*::after{animation:none!important;transition:none!important}');
+  const width = WIDTHS[theme.width]?.px;
+  if (width) parts.push(`main{max-width:${width}px}`);
   return parts.join('\n');
 }
 
@@ -244,6 +257,41 @@ const PRESETS = {
     name: 'Soft blue',
     light: '--bg:#eef4fb;--card:#ffffff;--text:#24364b;--muted:#5a6e84;--line:#d6e3f1;--brand:#3e76bb;--brand-text:#fff;--pink:#7db4ee;--ok:#2f9e78;--warn:#b46f10;--bad:#d24d6b;--field:#fff;color-scheme:light',
     dark: '--bg:#16202d;--card:#1e2b3c;--text:#e6eef8;--muted:#a3b4c8;--line:#2f4258;--brand:#8db8ea;--brand-text:#13202e;--pink:#9cc8f5;--ok:#5fd6a8;--warn:#f2b552;--bad:#ff8aa5;--field:#1a2636;color-scheme:dark',
+  },
+  mint: {
+    name: 'Fresh mint',
+    light: '--bg:#eef8f3;--card:#ffffff;--text:#1f3a30;--muted:#5b7a6d;--line:#d3ebdf;--brand:#2f9e78;--brand-text:#fff;--pink:#ff9fb8;--ok:#2f9e78;--warn:#b46f10;--bad:#d24d6b;--field:#fff;color-scheme:light',
+    dark: '--bg:#14211c;--card:#1b2c25;--text:#e4f4ec;--muted:#9fbfb1;--line:#2c4539;--brand:#6fdcb0;--brand-text:#10201a;--pink:#ffadc2;--ok:#5fd6a8;--warn:#f2b552;--bad:#ff8aa5;--field:#17261f;color-scheme:dark',
+  },
+  peach: {
+    name: 'Warm peach',
+    light: '--bg:#fdf3ee;--card:#fffaf7;--text:#4a2c22;--muted:#8d6a5d;--line:#f2ddd2;--brand:#e0703f;--brand-text:#fff;--pink:#ff8fa3;--ok:#2f9e78;--warn:#b46f10;--bad:#d24d6b;--field:#fff;color-scheme:light',
+    dark: '--bg:#241915;--card:#30221c;--text:#fbe9e1;--muted:#c4a597;--line:#4a352c;--brand:#ffa47a;--brand-text:#2a1810;--pink:#ffa3b6;--ok:#5fd6a8;--warn:#f2b552;--bad:#ff8aa5;--field:#2a1d18;color-scheme:dark',
+  },
+  sakura: {
+    name: 'Sakura pink',
+    light: '--bg:#fdf0f5;--card:#fffafc;--text:#4d2338;--muted:#91667b;--line:#f4d9e5;--brand:#d4568f;--brand-text:#fff;--pink:#ff8fbf;--ok:#2f9e78;--warn:#b46f10;--bad:#d24d6b;--field:#fff;color-scheme:light',
+    dark: '--bg:#24151d;--card:#311e28;--text:#fbe6f0;--muted:#c49cb0;--line:#4b2f3d;--brand:#ff9cc8;--brand-text:#2a1220;--pink:#ffb0d2;--ok:#5fd6a8;--warn:#f2b552;--bad:#ff8aa5;--field:#2a1922;color-scheme:dark',
+  },
+  forest: {
+    name: 'Forest',
+    light: '--bg:#f1f4ec;--card:#fbfcf8;--text:#28331f;--muted:#66745a;--line:#dde5d2;--brand:#4e7d36;--brand-text:#fff;--pink:#e8a0a0;--ok:#2f9e78;--warn:#b46f10;--bad:#c0504d;--field:#fff;color-scheme:light',
+    dark: '--bg:#161c12;--card:#1f281a;--text:#e6eedd;--muted:#a3b293;--line:#33402a;--brand:#9fd17f;--brand-text:#162010;--pink:#f0b0b0;--ok:#5fd6a8;--warn:#f2b552;--bad:#ff8a8a;--field:#1a2216;color-scheme:dark',
+  },
+  sunset: {
+    name: 'Sunset',
+    light: '--bg:#fff5e8;--card:#fffbf5;--text:#3f2a1a;--muted:#86684f;--line:#f5e1c8;--brand:#d9573b;--brand-text:#fff;--pink:#f78fb3;--ok:#2f9e78;--warn:#b46f10;--bad:#c0394f;--field:#fff;color-scheme:light',
+    dark: '--bg:#211628;--card:#2e1f36;--text:#fde8dc;--muted:#c7a6b4;--line:#46304f;--brand:#ff9466;--brand-text:#24120c;--pink:#ff9ec4;--ok:#5fd6a8;--warn:#f2b552;--bad:#ff8aa5;--field:#281b30;color-scheme:dark',
+  },
+  midnight: {
+    name: 'Midnight',
+    light: '--bg:#e9ebf5;--card:#f8f9fd;--text:#1d2140;--muted:#5d6386;--line:#d5d9ec;--brand:#4b56d2;--brand-text:#fff;--pink:#f08fc0;--ok:#2f9e78;--warn:#b46f10;--bad:#d24d6b;--field:#fff;color-scheme:light',
+    dark: '--bg:#0c0e1a;--card:#151829;--text:#e5e8ff;--muted:#9097c2;--line:#262a45;--brand:#8b95ff;--brand-text:#0c0e1a;--pink:#ff9ed2;--ok:#5fd6a8;--warn:#f2b552;--bad:#ff8aa5;--field:#10132a;color-scheme:dark',
+  },
+  contrast: {
+    name: 'High contrast (easiest to read)',
+    light: '--bg:#ffffff;--card:#ffffff;--text:#000000;--muted:#2b2b2b;--line:#000000;--brand:#0039b3;--brand-text:#fff;--pink:#b3005f;--ok:#006b3c;--warn:#7a4300;--bad:#b00020;--field:#fff;color-scheme:light',
+    dark: '--bg:#000000;--card:#000000;--text:#ffffff;--muted:#e0e0e0;--line:#ffffff;--brand:#ffd400;--brand-text:#000;--pink:#ff7ad1;--ok:#3dff9e;--warn:#ffb000;--bad:#ff5c7a;--field:#000;color-scheme:dark',
   },
 };
 
@@ -319,6 +367,9 @@ const ICONS = {
   key: '<circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 8.7-8.7"/><path d="m16 7 2.5 2.5"/><path d="m18.5 4.5 2 2"/>',
   game: '<rect x="2" y="6" width="20" height="12" rx="4"/><path d="M7 10v4"/><path d="M5 12h4"/><circle cx="15.5" cy="11" r="1"/><circle cx="18" cy="13.5" r="1"/>',
   plus: '<rect x="3" y="3" width="18" height="18" rx="5"/><path d="M12 8v8"/><path d="M8 12h8"/>',
+  paint: '<path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.5-.8 1.2-1.6-.4-1-.1-2.4 1.6-2.4H17a4 4 0 0 0 4-4c0-5.5-4-10-9-10z"/><circle cx="7.5" cy="11" r="1.2"/><circle cx="10.5" cy="7.5" r="1.2"/><circle cx="15" cy="8" r="1.2"/>',
+  pulse: '<path d="M3 12h4l2.5-6 4 12 2.5-6H21"/>',
+  help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.1-2.5 3.6"/><path d="M12 17.2v.3"/>',
   out: '<path d="M14 4h5a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-5"/><path d="M10 16l-4-4 4-4"/><path d="M6 12h10"/>',
 };
 const icon = (name) => `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`;
@@ -328,10 +379,13 @@ function menu(user) {
   const item = (href, ic, label, caption, extra = '') => `<a class="mi${extra}" href="${href}"><span class="mic">${icon(ic)}</span><span><b>${label}</b><small>${caption}</small></span></a>`;
   const items = [
     item('/?all=1', 'home', 'Servers', 'Pick a server and change its settings'),
-    item('/arcade', 'game', 'Arcade', 'Play Pixel Arcade games with friends'),
-    item('/invite', 'plus', 'Add to a server', 'Invite Pixel Bot to another server'),
+    item('/arcade', 'game', 'Arcade', '30 games to play with friends or Pixel Bot'),
+    item('/invite', 'plus', 'Add to a server', 'Invite Pixel Bot to any server you manage'),
+    item('/me/look', 'paint', 'Appearance', 'Your colours, text size and animations'),
+    item('/account', 'key', 'Login and devices', 'Backup links, log out everywhere'),
+    item('/status', 'pulse', 'Bot status', 'Is Pixel Bot online? Ping and uptime'),
+    item('/help', 'help', 'Help', 'How everything works, step by step'),
     user.isOwner ? item('/source', 'code', 'Code', 'Read and search Pixel Bot\'s code') : '',
-    item('/account', 'key', 'Backup login', 'One-time links to log in without Discord'),
     '<div class="msep"></div>',
     item('/logout', 'out', 'Log out', 'Sign out on this device', ' danger'),
   ].join('');
@@ -340,7 +394,11 @@ function menu(user) {
 }
 
 function page({ title, user, body, head = '' }) {
-  const theme = currentTheme();
+  const base = currentTheme();
+  let mine = {};
+  try { mine = user?.id ? require('../lib/userprefs').get(user.id) : {}; } catch {}
+  // Your own picks win; a preset you pick also replaces the owner's custom colours.
+  const theme = mine.preset ? { ...base, background: null, card: null, accent: null, ...mine } : { ...base, ...mine };
   const preset = PRESETS[theme.preset] ?? PRESETS.lavender;
   const light = preset.light + SYNTAX.light;
   const dark = preset.dark + SYNTAX.dark;
@@ -389,4 +447,4 @@ const hidden = (name, value) => `<input type="hidden" name="${esc(name)}" value=
 
 const toggle = (name, on, text) => `<label class="toggle"><input type="checkbox" name="${esc(name)}" value="1"${on ? ' checked' : ''}> ${esc(text)}</label>`;
 
-module.exports = { PRESETS, pixelHeart, pixelBot, botIcon, BOT_GRID, BOT_COLORS, esc, page, select, checks, toggle, input, textarea, hidden, colorInput, themeCss, textOn, mix, FONTS, CORNERS, MODES };
+module.exports = { TEXT_SIZES, MOTIONS, WIDTHS, PRESETS, pixelHeart, pixelBot, botIcon, BOT_GRID, BOT_COLORS, esc, page, select, checks, toggle, input, textarea, hidden, colorInput, themeCss, textOn, mix, FONTS, CORNERS, MODES };

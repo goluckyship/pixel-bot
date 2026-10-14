@@ -11,6 +11,38 @@
   let picking = null; // a 2-player game waiting for an opponent choice
   let busy = false;
 
+  const RULES = {
+    tictactoe: 'Take turns placing X and O. Get three in a row (across, down or diagonal) to win.',
+    connect4: 'Drop discs into a column. First to line up four in a row in any direction wins.',
+    trivia: '10 questions. Pick the right answer before time runs out. Faster right answers score more.',
+    reaction: 'Wait for the pad to turn green, then tap as fast as you can. Tapping early is a foul. Best of 5.',
+    checkers: 'Move pieces diagonally forward. Jump over an enemy piece to capture it (jumps are a must). Reach the far side to become a king that moves both ways. Capture or block every piece to win.',
+    reversi: 'Place a disc so it traps a line of the other colour between your discs; they all flip to yours. Most discs when the board fills up wins.',
+    gomoku: 'Take turns placing stones. First to get five in a row in any direction wins.',
+    ultimate: 'Nine small tic-tac-toe boards. The square you play in decides which board your opponent must play next. Win three small boards in a row to win.',
+    dots: 'Take turns drawing a line between two dots. Finish the fourth side of a box to claim it and go again. Most boxes wins.',
+    mancala: 'Pick one of your pits; its seeds are dropped one by one going around. Land in your store to go again. Land in an empty pit of yours to capture the seeds opposite. Most seeds in your store wins.',
+    battleship: 'Both fleets are hidden. Take turns firing at the enemy grid. ✕ is a hit, • a miss. Sink every ship to win.',
+    chopsticks: 'Tap one of your hands, then one of theirs: their hand gains your fingers. Five or more and that hand is out. You can also split your fingers between hands. Knock out both enemy hands to win.',
+    nim: 'Take as many sticks as you like from one pile. Whoever takes the very last stick wins.',
+    rps: 'Both pick rock, paper or scissors at the same time. Rock beats scissors, scissors beats paper, paper beats rock. First to 3 wins.',
+    memory: 'Flip two cards. A matching pair is yours and you go again; otherwise they flip back. Most pairs wins.',
+    scramble: 'Unscramble the letters into a real word and type it in. Wrong guesses are fine. First right answer gets a bonus.',
+    math: 'Solve each sum and type the answer. Faster answers score more.',
+    emoji: 'Work out what the emojis mean (a word, phrase or movie) and type it.',
+    truefalse: 'Is the weird fact true or false? Answer fast for more points.',
+    capitals: 'Pick the capital city of the country shown.',
+    higherlower: 'Guess if the next card will be higher or lower than the one shown. Ties count for everyone.',
+    typing: 'Type the sentence exactly as fast as you can. Capitals and punctuation don\'t matter.',
+    guess: 'Guess the secret number from 1 to 100. Each guess tells you higher or lower. Fewer guesses score more.',
+    codebreaker: 'Guess the secret code of 4 colours. Black peg: right colour in the right spot. White peg: right colour, wrong spot. Crack it first to win.',
+    simon: 'Watch the colours light up, then tap them back in the same order. The pattern grows every round. Get one wrong and you\'re out.',
+    hangman: 'Guess letters to reveal the word, or type the whole word if you know it. 7 wrong guesses and the word is lost.',
+    wordchain: 'On your turn, type a word that starts with the last letter of the previous word. No repeats. Run out of time and you\'re out.',
+    blackjack: 'Get closer to 21 than Pixel Bot the dealer without going over. Hit for another card or stand. Picture cards are 10, aces 1 or 11.',
+    pig: 'Roll the dice to build up a pot, then hold to bank it. Roll a 1 and you lose the pot. First to 50 wins.',
+    snakes: 'Roll and move. Ladders take you up, snakes slide you down. A six rolls again. First to square 100 wins.',
+  };
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const now = () => Date.now() + offset;
   const player = (id) => (state && state.players.find((p) => p.id === id)) || { id, name: 'Someone', color: '#9fb3d1', score: 0, wins: 0 };
@@ -19,9 +51,9 @@
   const av = (p) => (p.bot ? '<span class="av botav"><img src="/activity/bot.svg" alt=""></span>' : `<span class="av" style="background:${esc(p.color)}">${esc((p.name || '?').trim()[0] || '?').toUpperCase()}</span>`);
   const chip = (p, extra = '', cls = '') => `<span class="chip ${p.id === state.me ? 'me' : ''} ${cls}">${av(p)}${esc(p.name)}${extra}</span>`;
 
-  function toast(text) {
+  function toast(text, good) {
     const t = document.createElement('div');
-    t.className = 'toast';
+    t.className = good ? 'toast good' : 'toast';
     t.textContent = text;
     document.body.appendChild(t);
     setTimeout(() => t.remove(), 2600);
@@ -77,8 +109,11 @@
   // ---------- screens ----------
   function header(sub) {
     const code = web ? `<span class="tag" style="margin:0 0 0 6px">Room ${esc(document.body.dataset.code)}</span>` : '';
-    const back = state.game ? `<button class="btn ghost" data-act="lobby">${ic('back', 14)} Lobby</button>` : web ? `<a class="btn ghost" href="/arcade" style="text-decoration:none">${ic('back', 14)} Rooms</a>` : '';
-    return `<div class="top"><div class="brand"><div class="bot"></div><div><h1>Pixel Arcade${code}</h1><div class="sub" style="text-align:left;margin:0">${sub}</div></div></div>${back}</div>`;
+    const guest = document.body.dataset.guest === '1';
+    const back = state.game ? `<button class="btn ghost" data-act="lobby">${ic('back', 14)} Lobby</button>` : web ? `<a class="btn ghost" href="${guest ? '/play' : '/arcade'}" style="text-decoration:none">${ic('back', 14)} Rooms</a>` : '';
+    const share = web && !state.game ? `<button class="btn ghost" data-act="share" title="Copy a link friends can use to join">Share</button>` : '';
+    const full = document.fullscreenEnabled ? `<button class="btn ghost sq" data-act="full" title="Full screen" aria-label="Full screen">⛶</button>` : '';
+    return `<div class="top"><div class="brand"><div class="bot"></div><div><h1>Pixel Arcade${code}</h1><div class="sub" style="text-align:left;margin:0">${sub}</div></div></div><div class="topbtns">${share}${full}${back}</div></div>`;
   }
 
   function lobby() {
@@ -91,19 +126,20 @@
       const people = twoPlayer
         ? others.map((p) => `<button class="btn ghost" data-act="start" data-game="${picking}" data-with="${esc(p.id)}">${av(p)} ${esc(p.name)}</button>`).join('')
         : `<button class="btn ghost" data-act="start" data-game="${picking}">${ic('person', 16)} ${others.length ? `Everyone here (${others.length + 1})` : 'Just me'}</button>`;
-      return `${header(`${esc(g.name)}: pick who to play`)}
+      const rules = RULES[picking] ? `<div class="card pickcard rules"><h2>How to play</h2><p>${esc(RULES[picking])}</p></div>` : '';
+      return `${header(`${esc(g.name)}: pick who to play`)}${rules}
 <div class="card pickcard"><div class="pickhead"><img src="/activity/bot.svg" alt="" class="pickbot"><div><h2>Play ${twoPlayer ? 'against' : 'with'} Pixel Bot</h2><p class="sub" style="text-align:left;margin:0">Pick how tough it plays.</p></div></div><div class="row">${levels}</div></div>
 ${people ? `<div class="card pickcard"><h2>${twoPlayer ? 'Play a friend' : 'Play without Pixel Bot'}</h2><div class="row">${people}</div>${twoPlayer && !others.length ? '' : ''}</div>` : `<div class="card pickcard"><h2>Play a friend</h2><p class="sub" style="text-align:left">Nobody else is here yet. ${web ? `Share room code <b>${esc(document.body.dataset.code)}</b>.` : 'Invite friends into the activity.'}</p></div>`}
 <div class="row"><button class="btn ghost" data-act="cancel">Cancel</button></div>`;
     }
-    const card = ([id, g]) => `<button class="game" data-act="pick" data-game="${id}"><span class="em">${ic(g.icon || 'star', 40)}</span><b>${esc(g.name)}</b><small>${esc(g.blurb)}</small><span class="tag">${esc(g.players)}</span></button>`;
+    const card = ([id, g]) => `<div class="game" role="button" tabindex="0" data-act="pick" data-game="${id}"><span class="em">${ic(g.icon || 'star', 40)}</span><b>${esc(g.name)}</b><small>${esc(g.blurb)}</small><span class="cardfoot"><span class="tag">${esc(g.players)}</span><button class="quick" data-act="start" data-game="${id}" data-bot="1" data-level="normal" title="Start right away against Pixel Bot (Normal)">${ic('robot', 13)} vs Bot</button></span></div>`;
     const all = Object.entries(state.games);
     const cards = `<h2 class="sect">${ic('robot', 18)} 1v1 games <small>vs a friend or Pixel Bot</small></h2><div class="games">${all.filter(([, g]) => g.mode === 'duel').map(card).join('')}</div>
 <h2 class="sect">${ic('person', 18)} Party games <small>everyone at once, Pixel Bot can join</small></h2><div class="games">${all.filter(([, g]) => g.mode !== 'duel').map(card).join('')}</div>`;
     return `${header(`${state.players.length} player${state.players.length === 1 ? '' : 's'} here`)}
 <div class="card"><h2>Players</h2><div class="players">${players}</div></div>
 ${cards}
-<p class="foot">${web ? `Friends join from the dashboard: menu, then Arcade, then enter room code <b>${esc(document.body.dataset.code)}</b>.` : "Anyone in the activity can start a game. Invite friends with the activity's invite button."}</p>`;
+<p class="foot">${web ? `Tap <b>Share</b> to send friends a link, or tell them room code <b>${esc(document.body.dataset.code)}</b>. They can join from any phone or computer, no Discord needed.` : "Anyone in the activity can start a game. Invite friends with the activity's invite button."}</p>`;
   }
 
   function finishedButtons() {
@@ -222,6 +258,13 @@ ${cards}
     if (!el || el.disabled) return;
     const a = el.dataset.act;
     if (a === 'reload') return location.reload();
+    if (a === 'full') { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().catch(() => toast('Full screen isn\'t allowed here.')); return; }
+    if (a === 'share') {
+      const url = `${location.origin}/join/${document.body.dataset.code}`;
+      if (navigator.share) { navigator.share({ title: 'Play Pixel Arcade with me', url }).catch(() => {}); return; }
+      (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject()).then(() => toast(`Link copied: ${url}`, true), () => prompt('Copy this link:', url));
+      return;
+    }
     if (a === 'click') return;
     if (a === 'cancel') { picking = null; return render(); }
     if (a === 'pick') {
@@ -234,6 +277,9 @@ ${cards}
     if (a === 'lobby' || a === 'rematch') return act({ action: a });
     if (a === 'play') return act({ action: 'play', move: el.dataset.move });
     if (window.PAGames && state && state.game) window.PAGames.click(a, el, state.game, H);
+  });
+  app.addEventListener('keydown', (e) => {
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.game[data-act="pick"]')) { e.preventDefault(); e.target.click(); }
   });
   app.addEventListener('submit', (e) => {
     const form = e.target.closest('form[data-act="say"]');

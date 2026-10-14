@@ -15,6 +15,8 @@ const source = require('./source');
 const runner = require('./runner');
 const activity = require('../activity/server');
 const runPages = require('./runpages');
+const more = require('./morepages');
+const userprefs = require('../lib/userprefs');
 const pages = require('./pages');
 const { apply, applyPanel } = require('./actions');
 const panels = require('../lib/panels');
@@ -59,7 +61,7 @@ async function memberWithAccess(guild, userId) {
   if (!member) return null;
   const o = owner.settings();
   if (owner.isOwner(guild.client, userId)) return member; // you always get in
-  if (o.onlyMe) return null; // dashboard locked to the owner
+  if (o.onlyMe && require('../lib/settings').isHome(guild.id)) return null; // The Pixel Bassment's dashboard locked to the owner
   if (o.blocked.includes(userId)) return null;
   const ok = guild.ownerId === userId || member.permissions.has(PermissionFlagsBits.ManageGuild) || o.extraAccess.includes(userId);
   return ok ? member : null;
@@ -221,8 +223,52 @@ function createHandler(client, config) {
         return redirect(res, require('../lib/invite').inviteLink(client, url.searchParams.get('server')?.match(/^\d{15,25}$/)?.[0]));
       }
 
+      // ---------- pages anyone can open ----------
+      if (req.method === 'GET' && url.pathname === '/help') return send(res, 200, more.help(user));
+      if (req.method === 'GET' && url.pathname === '/status') {
+        let members = 0;
+        for (const g of client.guilds.cache.values()) members += g.memberCount ?? 0;
+        const v = source.version();
+        const info = {
+          online: Boolean(client.isReady?.() ?? client.user), ping: Math.max(0, Math.round(client.ws?.ping ?? 0)), uptime: client.uptime ?? process.uptime() * 1000,
+          servers: client.guilds.cache.size, members, games: activity.liveGames?.() ?? 0, memory: Math.round(process.memoryUsage().rss / 1048576),
+          version: v.hash, updated: v.changes?.[0] ? `${v.changes[0].text} (${new Date(v.changes[0].when).toLocaleString('en-US', { timeZone: 'America/Chicago', dateStyle: 'medium', timeStyle: 'short' })})` : null,
+        };
+        return send(res, 200, more.status(user, info));
+      }
+
+      // Guest arcade: play without Discord. Guests only ever get an arcade pass, never the dashboard.
+      const guest = (() => {
+        const raw = auth.unsign(auth.parseCookies(req.headers.cookie).pb_guest);
+        const m = /^(g-[A-Za-z0-9_-]{8,30})\|(.{1,20})$/s.exec(raw ?? '');
+        return m ? { id: m[1], name: m[2] } : null;
+      })();
+      const joinCode = (c) => activity.cleanCode(c) || 'MAIN';
+      if (url.pathname === '/play') {
+        if (req.method === 'POST') {
+          const form = parseForm(await readBody(req));
+          const name = String(form.name ?? '').replace(/[\u0000-\u001f\u007f<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, 20);
+          if (!name) return send(res, 400, more.guestPlay(user, null, form.code, 'Type a name first.'));
+          const id = guest?.id ?? `g-${crypto.randomBytes(9).toString('base64url')}`;
+          return redirect(res, `/play/room?room=${joinCode(form.code || form.room)}`, {
+            'Set-Cookie': auth.cookie('pb_guest', auth.sign(`${id}|${name}`), { maxAge: 30 * 86400, secure: site.secure }),
+          });
+        }
+        if (guest && !user && url.searchParams.get('room')) return redirect(res, `/play/room?room=${joinCode(url.searchParams.get('room'))}`);
+        return send(res, 200, more.guestPlay(user, guest, activity.cleanCode(url.searchParams.get('room')), null));
+      }
+      if (req.method === 'GET' && url.pathname === '/play/room') {
+        const code = joinCode(url.searchParams.get('room'));
+        if (user) return redirect(res, `/arcade/play?room=${code}`);
+        if (!guest) return redirect(res, `/play?room=${code}`);
+        return activity.webPage(res, client.application.id, { id: guest.id, username: `${guest.name} (guest)` }, code, { guest: true });
+      }
+      // Share links: pixelbot.wisp.uno/join/CODE works for everyone.
+      const joinMatch = /^\/join\/([A-Za-z0-9]{1,8})$/.exec(url.pathname);
+      if (req.method === 'GET' && joinMatch) return redirect(res, user ? `/arcade/play?room=${joinCode(joinMatch[1])}` : `/play?room=${joinCode(joinMatch[1])}`);
+
       if (!user) {
-        if (req.method === 'GET' && url.pathname === '/') return send(res, 200, pages.landing());
+        if (req.method === 'GET' && url.pathname === '/') return send(res, 200, more.home());
         return redirect(res, '/');
       }
 
@@ -236,11 +282,36 @@ function createHandler(client, config) {
       }
 
       // Your account: make or cancel one-time backup login links.
+      // Your own look.
+      if (url.pathname === '/me/look') {
+        if (req.method === 'POST') {
+          const form = parseForm(await readBody(req));
+          if (!auth.csrfOk(session, form.csrf)) return send(res, 403, more.appearance(user, session.csrf, userprefs.get(user.id), { ok: false, text: 'That form expired. Try again.' }));
+          const html = require('./html');
+          const okKey = (record, v) => (Object.hasOwn(record, v) ? v : '');
+          const values = form.reset ? {} : {
+            preset: okKey(html.PRESETS, form.preset), mode: okKey(html.MODES, form.mode), font: okKey(html.FONTS, form.font), corners: okKey(html.CORNERS, form.corners),
+            textSize: okKey(html.TEXT_SIZES, form.textSize), motion: okKey(html.MOTIONS, form.motion), width: okKey(html.WIDTHS, form.width),
+            accent: form.accent_default ? '' : (/^#[0-9a-f]{6}$/i.test(form.accent ?? '') ? form.accent : ''),
+          };
+          userprefs.set(user.id, values);
+          return send(res, 200, more.appearance(user, session.csrf, userprefs.get(user.id), { ok: true, text: form.reset ? 'Back to the default look.' : 'Saved! This is your look on every device.' }));
+        }
+        return send(res, 200, more.appearance(user, session.csrf, userprefs.get(user.id), null));
+      }
+      if (req.method === 'POST' && url.pathname === '/account/logout-all') {
+        const form = parseForm(await readBody(req));
+        if (!auth.csrfOk(session, form.csrf)) return redirect(res, '/account');
+        auth.logoutEverywhere(user.id);
+        owner.audit({ userId: user.id, username: user.username, guildId: null, what: 'Logged out everywhere', ok: true, text: '' });
+        return redirect(res, '/', { 'Set-Cookie': auth.cookie('pb_session', '', { maxAge: 0, secure: site.secure }) });
+      }
+
       if (url.pathname === '/account' || url.pathname === '/account/link' || url.pathname === '/account/revoke') {
         let hasAccess = owner.isOwner(client, user.id);
         for (const guild of client.guilds.cache.values()) if (!hasAccess && (await memberWithAccess(guild, user.id))) hasAccess = true;
         if (req.method === 'GET' && url.pathname === '/account') {
-          return send(res, 200, pages.account(user, session.csrf, { hasAccess, count: links.countFor(user.id), max: links.PER_USER, used: url.searchParams.has('used') }));
+          return send(res, 200, pages.account(user, session.csrf, { hasAccess, count: links.countFor(user.id), max: links.PER_USER, used: url.searchParams.has('used'), devices: auth.devicesFor(user.id) }));
         }
         if (req.method === 'POST') {
           const form = parseForm(await readBody(req));

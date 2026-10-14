@@ -121,4 +121,12 @@ async function fetchDiscordUser({ code, clientId, clientSecret, redirectUri }) {
   };
 }
 
-module.exports = { SESSION_DAYS, sessions, sign, unsign, parseCookies, cookie, getSession, createSession, destroySession, csrfOk, fetchDiscordUser };
+/** How many devices a person is logged in on, and logging them all out. */
+const devicesFor = (userId) => Object.values(sessions.all()).filter((x) => x.user?.id === userId && Date.now() < x.expires).length;
+function logoutEverywhere(userId) {
+  const all = sessions.all();
+  for (const [id, x] of Object.entries(all)) if (x.user?.id === userId) delete all[id];
+  db.save();
+}
+
+module.exports = { devicesFor, logoutEverywhere, SESSION_DAYS, sessions, sign, unsign, parseCookies, cookie, getSession, createSession, destroySession, csrfOk, fetchDiscordUser };

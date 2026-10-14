@@ -148,3 +148,14 @@ h1{font-size:26px;margin:4px 0 2px;text-shadow:3px 3px 0 #0a1020}h2{font-size:18
 .mcb{width:100%;max-width:640px;box-sizing:border-box}.pits{gap:6px;min-width:0}.pit{min-width:0}.store{min-width:34px}
 .slb{width:100%;max-width:520px}
 @media (max-width:520px){.pit b{font-size:15px}.pit span{display:none}.store{font-size:18px}.sl{font-size:8px}.sl em{font-size:8px}.tok{width:8px;height:8px;border-width:1px}.card{padding:12px}}
+
+/* easier on every device */
+html{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.topbtns{display:flex;gap:8px;align-items:center}.btn.sq{padding:11px 13px}
+.game{display:flex;flex-direction:column}.cardfoot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:auto;padding-top:10px}.cardfoot .tag{margin-top:0}
+.quick{cursor:pointer;display:inline-flex;align-items:center;gap:5px;font:800 12px ui-monospace,Consolas,monospace;color:#10182a;background:var(--cyan);border:0;border-radius:6px;padding:6px 9px;box-shadow:0 3px 0 #3a8f99}.quick:active{transform:translateY(2px);box-shadow:none}
+.rules p{margin:0;color:var(--muted);line-height:1.5}
+.toast.good{background:var(--green);color:#10182a;box-shadow:0 5px 0 #2a7a5c}
+@media (pointer:coarse){.btn{min-height:46px}.quick{padding:9px 12px;font-size:13px}.opt{min-height:70px}.key{width:42px;height:48px}.say input{font-size:18px}}
+@media (max-width:520px){.top{flex-wrap:wrap}.topbtns{width:100%;justify-content:flex-end}.games{grid-template-columns:1fr 1fr;gap:10px}.game{padding:12px}.game b{font-size:15px}.game small{font-size:12px}.cardfoot{flex-wrap:wrap}}
+@media (max-width:360px){.games{grid-template-columns:1fr}}

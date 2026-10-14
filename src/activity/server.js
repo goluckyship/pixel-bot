@@ -78,7 +78,7 @@ const validRoom = (id) => /^[\w.:-]{1,120}$/.test(String(id ?? ''));
 
 const attr = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 function page(clientId, web = null) {
-  const extra = web ? ` data-mode="web" data-room="${attr(web.room)}" data-code="${attr(web.code)}" data-token="${attr(web.token)}"` : '';
+  const extra = web ? ` data-mode="web" data-room="${attr(web.room)}" data-code="${attr(web.code)}" data-token="${attr(web.token)}"${web.guest ? ' data-guest="1"' : ''}` : '';
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
 <title>Pixel Arcade</title><link rel="icon" href="/activity/bot.svg?v=${VERSION}"><link rel="stylesheet" href="/activity/arcade.css?v=${VERSION}"></head>
 <body data-client="${String(clientId).replace(/\D/g, '')}"${extra}><div id="app"><div class="boot"><div class="bot big"></div><p>Loading the arcade…</p></div></div>
@@ -154,11 +154,11 @@ const cleanCode = (c) => String(c ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '')
 const newCode = () => Array.from(crypto.randomBytes(5), (b) => 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[b % 31]).join('');
 
 /** The arcade page for a logged-in dashboard user. code: a room code, or MAIN. */
-function webPage(res, clientId, user, code) {
+function webPage(res, clientId, user, code, { guest = false } = {}) {
   const room = `web-${code}`;
   const token = issue({ id: user.id, username: user.username });
   res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Content-Security-Policy': WEB_CSP, 'X-Frame-Options': 'DENY', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin' });
-  res.end(page(clientId, { room, code, token }));
+  res.end(page(clientId, { room, code, token, guest }));
 }
 
 /** Who's in which web room right now (for the rooms page). */
@@ -166,4 +166,7 @@ function webRooms() {
   return [...arcade.rooms.values()].filter((r) => r.id.startsWith('web-') && r.players.size).map((r) => ({ code: r.id.slice(4), players: [...r.players.values()].map((p) => p.name), game: r.game && !r.game.finished ? arcade.GAMES[r.game.type]?.name : null }));
 }
 
-module.exports = { VERSION, handle, CSP, tokens, issue, webPage, webRooms, cleanCode, newCode };
+/** How many arcade games are being played right now (for the status page). */
+const liveGames = () => [...arcade.rooms.values()].filter((r) => r.game && !r.game.finished && r.players.size).length;
+
+module.exports = { liveGames, VERSION, handle, CSP, tokens, issue, webPage, webRooms, cleanCode, newCode };
