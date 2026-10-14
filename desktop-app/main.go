@@ -34,7 +34,13 @@ func browsers() []string {
 	}
 }
 
+// start launches a program normally (visible), so the app window always shows up.
 func start(name string, args ...string) error {
+	return exec.Command(name, args...).Start()
+}
+
+// startHidden is only for the helper that hands the link to the default browser.
+func startHidden(name string, args ...string) error {
 	cmd := exec.Command(name, args...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 	return cmd.Start()
@@ -43,11 +49,11 @@ func start(name string, args ...string) error {
 func main() {
 	for _, b := range browsers() {
 		if exists(b) {
-			if start(b, "--app="+site, "--window-size=1150,820") == nil {
+			if start(b, "--app="+site, "--new-window", "--window-size=1150,820") == nil {
 				return
 			}
 		}
 	}
 	// No Chrome/Edge found: open it in whatever browser is the default.
-	_ = start("rundll32", "url.dll,FileProtocolHandler", site)
+	_ = startHidden("rundll32", "url.dll,FileProtocolHandler", site)
 }
