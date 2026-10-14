@@ -25,6 +25,8 @@ client.commands = loadCommands();
 client.components = collectComponents(client.commands);
 loadEvents(client);
 require('./lib/consolecommands').listen(client); // "backup-link" etc. typed into the hosting console
+// Start the website straight away, so it answers even while Discord is still connecting.
+client.dashboard = require('./dashboard/server').start(client);
 
 // Keep running if something unexpected goes wrong, but say what it was.
 client.on('error', (error) => console.error('Discord client error:', error));

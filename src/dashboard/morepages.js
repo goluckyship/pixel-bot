@@ -114,4 +114,15 @@ ${error ? `<div class="flash bad">${esc(error)}</div>` : ''}${who}</div>`,
   });
 }
 
-module.exports = { home, appearance, status, help, guestPlay };
+/** Shown while Pixel Bot is still connecting to Discord. Refreshes itself. */
+function waking(seconds) {
+  return page({
+    title: 'Waking up',
+    head: '<meta http-equiv="refresh" content="15">',
+    body: `<div class="hero">${pixelBot(110, 'beat')}<h1>Pixel Bot is waking up…</h1>
+<p class="sub">It's connecting to Discord. This page refreshes by itself every 15 seconds.</p>
+<p class="help">Started ${seconds < 90 ? `${seconds} seconds` : `${Math.round(seconds / 60)} minutes`} ago. If this takes more than a few minutes, Discord is probably slowing down the hosting company's connection for a while. It fixes itself; nothing on your end needs changing.</p></div>`,
+  });
+}
+
+module.exports = { home, appearance, status, help, guestPlay, waking };

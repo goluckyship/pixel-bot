@@ -123,6 +123,12 @@ function createHandler(client, config) {
     try {
       const site = siteFor(req, config);
       const url = new URL(req.url, site.base);
+      // Still connecting to Discord (for example while Discord is slowing down the host's connection):
+      // show a friendly page that refreshes itself instead of the host's "web server isn't running".
+      if (typeof client.isReady === 'function' && !client.isReady()) {
+        if (url.pathname === '/robots.txt' || url.pathname.startsWith('/activity/api')) { res.writeHead(503, { 'Retry-After': '15' }); return res.end(); }
+        return send(res, 503, more.waking(Math.round(process.uptime())), { 'Retry-After': '15' });
+      }
       // The Pixel Arcade (Discord Activity) has its own pages and login.
       if (await activity.handle(req, res, url, { clientId: client.application.id, clientSecret: config.secret })) return;
 
