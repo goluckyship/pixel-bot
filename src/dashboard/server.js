@@ -16,6 +16,7 @@ const runner = require('./runner');
 const activity = require('../activity/server');
 const runPages = require('./runpages');
 const more = require('./morepages');
+const appFiles = require('./appfiles');
 const userprefs = require('../lib/userprefs');
 const pages = require('./pages');
 const { apply, applyPanel } = require('./actions');
@@ -120,7 +121,7 @@ function createHandler(client, config) {
       'X-Frame-Options': 'DENY',
       'X-Content-Type-Options': 'nosniff',
       'Referrer-Policy': 'same-origin',
-      'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' https://cdn.discordapp.com data:; form-action 'self'; frame-ancestors 'none'",
+      'Content-Security-Policy': "default-src 'none'; script-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' https://cdn.discordapp.com data:; form-action 'self'; frame-ancestors 'none'",
       ...headers,
     });
     // School networks block Discord's image server too, so pictures load through Pixel Bot.
@@ -135,6 +136,10 @@ function createHandler(client, config) {
     try {
       const site = siteFor(req, config);
       const url = new URL(req.url, site.base);
+      // The installable app: manifest, service worker, icons and the offline page. Always available.
+      if (req.method === 'GET' && appFiles.serve(req, res, url, config)) return;
+      if (req.method === 'GET' && url.pathname === '/install') return send(res, 200, appFiles.installPage());
+
       // Terms and privacy always work, even while Pixel Bot is still connecting to Discord.
       if (req.method === 'GET' && (url.pathname === '/terms' || url.pathname === '/tos')) return send(res, 200, require('./legal').terms());
       if (req.method === 'GET' && url.pathname === '/privacy') return send(res, 200, require('./legal').privacy());

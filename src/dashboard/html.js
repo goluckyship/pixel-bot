@@ -99,6 +99,7 @@ nav.jump{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 22px}
 nav.jump a{font-size:14px;font-weight:700;padding:6px 14px;border:2px solid var(--line);border-radius:999px;text-decoration:none;color:var(--text);background:var(--card);transition:border-color .15s,background .15s}
 nav.jump a:hover{border-color:var(--pink);background:color-mix(in srgb,var(--pink) 14%,var(--card))}
 .servers a{display:flex;align-items:center;gap:14px;padding:14px 16px;border:2px solid var(--line);border-radius:var(--r);margin:0 0 12px;background:var(--card);text-decoration:none;color:var(--text);box-shadow:0 5px 0 -1px var(--line);transition:transform .12s,border-color .15s}
+.hdr{display:flex;align-items:center;gap:10px}.installbtn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:999px;background:var(--brand);color:var(--brand-text,#fff);font-weight:700;font-size:14px;text-decoration:none}.installbtn[hidden],[data-install][hidden]{display:none!important}html.installed .installbtn{display:none!important}
 .servers a:hover{border-color:var(--pink);transform:translateY(-2px)}
 .srow{position:relative}.srow>a.go{padding-right:120px}.srow .rm{position:absolute;right:14px;top:50%;transform:translateY(-58%);display:inline-flex;align-items:center;gap:6px;padding:8px 12px;margin:0;border:2px solid color-mix(in srgb,var(--bad) 45%,var(--line));border-radius:999px;box-shadow:none;background:var(--card);color:var(--bad);font-weight:700;font-size:14px}.srow .rm:hover{background:color-mix(in srgb,var(--bad) 12%,var(--card));transform:translateY(-58%)}
 .confirmbox{text-align:center}.confirmbox .row2{justify-content:center}
@@ -384,6 +385,7 @@ function menu(user) {
     item('/arcade', 'game', 'Arcade', '30 games to play with friends or Pixel Bot'),
     item('/invite', 'plus', 'Add to a server', 'Invite Pixel Bot to any server you manage'),
     item('/me/look', 'paint', 'Appearance', 'Your colours, text size and animations'),
+    item('/install', 'plus', 'Get the app', 'Install Pixel Bot on this device'),
     item('/account', 'key', 'Login and devices', 'Backup links, log out everywhere'),
     item('/status', 'pulse', 'Bot status', 'Is Pixel Bot online? Ping and uptime'),
     item('/help', 'help', 'Help', 'How everything works, step by step'),
@@ -413,11 +415,14 @@ function page({ title, user, body, head = '' }) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(title)} · ${esc(name)}</title>
 <link rel="icon" href="data:image/svg+xml,${encodeURIComponent(botIcon())}">
-<meta name="theme-color" content="#8b6cf6">${head}
+<meta name="theme-color" content="#8b6cf6">
+<link rel="manifest" href="/manifest.webmanifest"><link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Pixel Bot">
+<script src="/app.js" defer></script>${head}
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito:wght@400;600;700&display=swap">
 <style>${CSS}${mode}${themeCss(theme)}</style></head><body>
-<header><a class="brand" href="/">${pixelBot(32)}<b>${esc(name)}</b></a>${user ? menu(user) : ''}</header>
+<header><a class="brand" href="/">${pixelBot(32)}<b>${esc(name)}</b></a><span class="hdr"><a class="installbtn" href="/install" data-install hidden>⬇️ Install app</a>${user ? menu(user) : ''}</span></header>
 <main>${body}</main></body></html>`;
 }
 

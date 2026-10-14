@@ -10,7 +10,7 @@ function home() {
     title: 'Welcome',
     body: `<div class="hero">${pixelBot(120, 'beat')}<h1>Pixel Bot</h1>
 <p class="sub">Moderation, tickets, levels, welcome messages and 30 arcade games, all set up from one cosy dashboard. Free for any server.</p>
-<div class="herobtns"><a class="button" href="/login">Log in with Discord</a><a class="button secondary" href="/invite">➕ Add to your server</a><a class="button secondary" href="/play">🎮 Play the arcade</a></div>
+<div class="herobtns"><a class="button" href="/login">Log in with Discord</a><a class="button secondary" href="/invite">➕ Add to your server</a><a class="button secondary" href="/play">🎮 Play the arcade</a><a class="button secondary" href="/install">⬇️ Get the app</a></div>
 <p class="loginalt"><b>Can't use Discord on this computer?</b> <a class="linky" href="/code">Log in with a code</a> from your phone, or use a <a class="linky" href="/help#backup">backup login link</a>.</p></div>
 <div class="features">
 <div class="card"><b>🛡️ Keep it safe</b><p>Automod, warnings, timeouts, raid protection and a staff log.</p></div>
