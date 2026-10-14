@@ -12,7 +12,6 @@ const appearance = require('../lib/appearance');
 const { resolveEmoji } = require('../lib/emoji');
 const { hexColor } = require('../lib/ui');
 const questionsLib = require('../lib/questions');
-const { FONTS, CORNERS, MODES } = require('./html');
 
 const asList = (value) => (value === undefined ? [] : Array.isArray(value) ? value : [value]);
 const text = (value, max) => String(Array.isArray(value) ? value[0] : value ?? '').replace(/\r\n/g, '\n').trim().slice(0, max);
@@ -190,22 +189,9 @@ async function apply(guild, member, sectionId, form) {
         if (appearance.ACTIVITIES[form.activityType]) b.activityType = form.activityType;
         b.activityText = text(form.activityText, 128);
         b.color = color.value ? hexColor(color.value) : null;
-        const theme = {};
-        for (const [key, field] of [['accent', 'themeAccent'], ['background', 'themeBackground'], ['card', 'themeCard']]) {
-          const picked = pickColor(form, field, 'The dashboard');
-          if (picked.error) return { ok: false, text: picked.error };
-          if (picked.value) theme[key] = picked.value;
-        }
-        if (require('./html').PRESETS[form.themePreset]) theme.preset = form.themePreset;
-        if (MODES[form.themeMode]) theme.mode = form.themeMode;
-        if (FONTS[form.themeFont]) theme.font = form.themeFont;
-        if (CORNERS[form.themeCorners]) theme.corners = form.themeCorners;
-        const title = text(form.themeTitle, Infinity);
-        if (title) theme.title = title;
-        b.theme = theme;
         db.save();
         appearance.applyPresence(guild.client);
-        changes.push('status, colours and dashboard look');
+        changes.push('status and card colour');
       }
       return { ok: true, text: changes.length ? `Saved (${changes.join(', ')}).` : 'Nothing changed.' };
     }
