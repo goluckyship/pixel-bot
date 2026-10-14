@@ -148,10 +148,11 @@ function createHandler(client, config) {
       // the ones that do show a friendly page that refreshes itself.
       if (typeof client.isReady === 'function' && !client.isReady()) {
         const p = url.pathname;
-        const needsDiscord = ['/login', '/callback', '/code', '/start'].includes(p) || p.startsWith('/g/') || (p === '/' && user) || !appId;
+        if (p === '/start') return redirect(res, '/'); // the app shortcut: go to the home page instead of a dead end
+        const needsDiscord = ['/login', '/callback', '/code'].includes(p) || p.startsWith('/g/') || (p === '/' && user) || !appId;
         if (needsDiscord) {
           if (p.startsWith('/activity/api')) { res.writeHead(503, { 'Retry-After': '15' }); return res.end(); }
-          return send(res, 200, more.waking(Math.round(process.uptime()), user, p === '/login' || p === '/callback' || p === '/code' || p === '/start')); // 200: the host replaces 5xx pages with its own "offline" page
+          return send(res, 200, more.waking(Math.round(process.uptime()), user, p === '/login' || p === '/callback' || p === '/code')); // 200: the host replaces 5xx pages with its own "offline" page
         }
       }
       // The Pixel Arcade (Discord Activity) has its own pages and login.
