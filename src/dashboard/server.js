@@ -27,7 +27,8 @@ const { report } = require('../commands/utility/setup');
 const MAX_BODY = 20 * 1024 * 1024; // big panels with lots of questions send a lot of fields
 
 function settingsFromEnv() {
-  const base = (process.env.DASHBOARD_URL ?? '').trim().replace(/\/+$/, '');
+  // Forgiving: also accepts "DASHBOARD_URL=..." pasted twice, quotes, or a trailing slash.
+  const base = (process.env.DASHBOARD_URL ?? '').trim().replace(/^(DASHBOARD_URL\s*=\s*)+/i, '').replace(/^["']|["']$/g, '').trim().replace(/\/+$/, '');
   const secret = (process.env.DISCORD_CLIENT_SECRET ?? '').trim();
   if (!base || !secret) return null;
   let url;
