@@ -56,6 +56,9 @@ function serve(req, res, url) {
   if (p === '/sw.js') return file(res, 'sw.js', { 'Cache-Control': 'no-cache', 'Service-Worker-Allowed': '/' });
   if (p === '/app.js') return file(res, 'app.js', { 'Cache-Control': 'public, max-age=3600' });
   if (p === '/offline.html') return file(res, 'offline.html', { 'Cache-Control': 'no-cache', 'Content-Security-Policy': "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'" });
+  if (p === '/download/windows' || p === '/download/Pixel%20Bot.exe') {
+    return file(res, 'PixelBot.exe', { 'Content-Type': 'application/vnd.microsoft.portable-executable', 'Content-Disposition': 'attachment; filename="Pixel Bot.exe"', 'Cache-Control': 'no-cache' });
+  }
   if (p === '/favicon.ico') return file(res, 'favicon-32.png', { 'Cache-Control': 'public, max-age=86400' });
   if (p === '/apple-touch-icon.png') return file(res, 'apple-touch-icon.png', { 'Cache-Control': 'public, max-age=86400' });
   const icon = /^\/app\/([a-z0-9-]+\.png)$/.exec(p)?.[1];
@@ -69,9 +72,11 @@ function installPage() {
   return page({
     title: 'Get the app',
     body: `<div class="hero" style="padding-bottom:6px">${pixelBot(96, 'beat')}<h1>Get the Pixel Bot app</h1>
-<p class="sub">Its own window, icon, taskbar button and Start menu entry. No download, and it always has the newest version.</p>
-<div class="herobtns"><a class="button" href="/install" data-install hidden>⬇️ Install Pixel Bot</a></div></div>
-${step('💻 Windows, Mac or Chromebook (Chrome or Edge)', '<ol><li>Open <b>pixelbotstudio.net</b> in Chrome or Edge.</li><li>Click the <b>Install</b> icon at the right end of the address bar (a little screen with an arrow), or the button above.</li><li>Click <b>Install</b>. Pixel Bot opens in its own window and appears in your Start menu / Launchpad.</li></ol>')}
+<p class="sub">Its own window and robot icon. Always the newest version, nothing to update.</p>
+<div class="herobtns"><a class="button bigdl" href="/download/windows" download="Pixel Bot.exe">⬇️ Download Pixel Bot for Windows</a></div>
+<p class="help">That's it: download it, drag <b>Pixel Bot.exe</b> to your desktop, double-click. (If Windows says "protected your PC", click <b>More info</b> → <b>Run anyway</b> the first time.)</p></div>
+<h2 class="group">Other devices</h2>
+${step('💻 Mac or Chromebook (Chrome or Edge)', '<ol><li>Open <b>pixelbotstudio.net</b> in Chrome or Edge.</li><li>Click the <b>Install</b> icon at the right end of the address bar (a little screen with an arrow).</li><li>Click <b>Install</b>. Pixel Bot opens in its own window and appears in your Start menu / Launchpad.</li></ol>')}
 ${step('🤖 Android', '<ol><li>Open <b>pixelbotstudio.net</b> in Chrome.</li><li>Tap <b>⋮</b> → <b>Install app</b> (or <b>Add to Home screen</b>).</li></ol>')}
 ${step('🍎 iPhone or iPad', '<ol><li>Open <b>pixelbotstudio.net</b> in Safari.</li><li>Tap the <b>Share</b> button → <b>Add to Home Screen</b> → <b>Add</b>.</li></ol>')}
 <p class="help">To remove it later: right-click the app icon → Uninstall (computer), or press and hold the icon (phone).</p>`,
