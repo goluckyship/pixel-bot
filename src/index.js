@@ -25,8 +25,6 @@ client.commands = loadCommands();
 client.components = collectComponents(client.commands);
 loadEvents(client);
 require('./lib/consolecommands').listen(client); // "backup-link" etc. typed into the hosting console
-// Start the website straight away, so it answers even while Discord is still connecting.
-client.dashboard = require('./dashboard/server').start(client);
 
 // Keep running if something unexpected goes wrong, but say what it was.
 client.on('error', (error) => console.error('Discord client error:', error));
@@ -78,7 +76,11 @@ client.on(Events.ShardDisconnect, (event) => {
 });
 
 getToken()
-  .then((token) => client.login(token))
+  .then((token) => {
+    // Start the website before logging in, so it answers even while Discord is still connecting.
+    if (!client.dashboard) client.dashboard = require('./dashboard/server').start(client);
+    return client.login(token);
+  })
   .catch((error) => {
     const message = String(error?.message ?? '');
     if (error?.code === 'TokenInvalid' || /invalid token/i.test(message)) rejectToken();
