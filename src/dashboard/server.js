@@ -264,7 +264,7 @@ function createHandler(client, config) {
         for (const g of client.guilds.cache.values()) members += g.memberCount ?? 0;
         const v = source.version();
         const info = {
-          online: Boolean(client.isReady?.() ?? client.user), ping: Math.max(0, Math.round(client.ws?.ping ?? 0)), uptime: client.uptime ?? process.uptime() * 1000,
+          online: Boolean(client.isReady?.() ?? client.user), ping: Number.isFinite(client.ws?.ping) && client.ws.ping >= 0 ? Math.round(client.ws.ping) : null, uptime: client.uptime ?? process.uptime() * 1000,
           servers: client.guilds.cache.size, members, games: activity.liveGames?.() ?? 0, memory: Math.round(process.memoryUsage().rss / 1048576),
           version: v.number ?? v.hash, updated: v.changes?.[0] ? `${v.changes[0].text} (${new Date(v.changes[0].when).toLocaleString('en-US', { timeZone: 'America/Chicago', dateStyle: 'medium', timeStyle: 'short' })})` : null,
         };

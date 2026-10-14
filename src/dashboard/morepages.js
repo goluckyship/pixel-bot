@@ -61,7 +61,7 @@ function fmtUptime(ms) {
 function status(user, info) {
   const tiles = [
     [info.online ? '🟢 Online' : '🔴 Offline', 'Discord connection'],
-    [`${info.ping} ms`, 'ping to Discord'],
+    [info.ping === null ? '—' : `${info.ping} ms`, 'ping to Discord'],
     [fmtUptime(info.uptime), 'since last restart'],
     [info.servers, info.servers === 1 ? 'server' : 'servers'],
     [info.members.toLocaleString('en-US'), 'members in total'],
