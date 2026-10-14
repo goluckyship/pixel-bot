@@ -46,10 +46,26 @@ func startHidden(name string, args ...string) error {
 	return cmd.Start()
 }
 
+// appArgs opens Pixel Bot in its own private browser profile: no extensions (like package
+// trackers or ad add-ons), its own sign-in and its own taskbar button, like a normal app.
+func appArgs() []string {
+	profile := filepath.Join(os.Getenv("LOCALAPPDATA"), "PixelBot", "AppProfile")
+	_ = os.MkdirAll(profile, 0o755)
+	return []string{
+		"--app=" + site,
+		"--user-data-dir=" + profile,
+		"--disable-extensions",
+		"--no-first-run",
+		"--no-default-browser-check",
+		"--disable-features=Translate,DownloadBubble",
+		"--window-size=1150,820",
+	}
+}
+
 func main() {
 	for _, b := range browsers() {
 		if exists(b) {
-			if start(b, "--app="+site, "--new-window", "--window-size=1150,820") == nil {
+			if start(b, appArgs()...) == nil {
 				return
 			}
 		}
