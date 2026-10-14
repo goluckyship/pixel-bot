@@ -378,7 +378,10 @@ function createHandler(client, config) {
         const guilds = [];
         for (const guild of client.guilds.cache.values()) {
           if (await memberWithAccess(guild, user.id)) {
-            guilds.push({ id: guild.id, name: guild.name, memberCount: guild.memberCount, icon: guild.iconURL?.({ size: 64 }) ?? null });
+            guilds.push({
+              id: guild.id, name: guild.name, memberCount: guild.memberCount, icon: guild.iconURL?.({ size: 64 }) ?? null,
+              canRemove: !require('../lib/settings').isHome(guild.id) || owner.isOwner(client, user.id),
+            });
           }
         }
         if (guilds.length === 1 && !url.searchParams.has('all')) return redirect(res, `/g/${guilds[0].id}`);
@@ -463,6 +466,21 @@ function createHandler(client, config) {
           console.log(`Dashboard: ${user.username} ran ${label} in ${guild.name}${result.error ? ` (${result.error})` : ''}`);
           return send(res, 200, runPages.resultPage(user, guild, session.csrf, command, result, { channel, post, again }));
         }
+      }
+
+      const removeMatch = req.method === 'GET' && /^\/g\/(\d+)\/remove$/.exec(url.pathname);
+      if (removeMatch) {
+        const guild = client.guilds.cache.get(removeMatch[1]);
+        const member = guild && (await memberWithAccess(guild, user.id));
+        if (!member) {
+          const e = pages.errorPage(user, guild ? 'You need the Manage Server permission in that server.' : 'Pixel Bot is not in that server any more.', guild ? 403 : 404);
+          return send(res, e.status, e.html);
+        }
+        if (require('../lib/settings').isHome(guild.id) && !owner.isOwner(client, user.id)) {
+          const e = pages.errorPage(user, 'Only the bot owner can remove Pixel Bot from its home server.', 403);
+          return send(res, e.status, e.html);
+        }
+        return send(res, 200, pages.removeConfirm(guild, user, session.csrf));
       }
 
       const match = /^\/g\/(\d+)(?:\/(save|panel)\/([a-z0-9-]+)(?:\/([a-z]+))?)?$/.exec(url.pathname);

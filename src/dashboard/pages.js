@@ -163,7 +163,7 @@ function arcadeRooms(user, live) {
 
 function serverList(user, guilds, flash = null) {
   const items = guilds.length
-    ? guilds.map((g) => `<a href="/g/${esc(g.id)}">${g.icon ? `<img src="${esc(g.icon)}" alt="">` : `<span class="noicon">${esc(g.name[0])}</span>`}<span><b>${esc(g.name)}</b><br><span class="muted">${g.memberCount} members</span></span></a>`).join('')
+    ? guilds.map((g) => `<div class="srow"><a class="go" href="/g/${esc(g.id)}">${g.icon ? `<img src="${esc(g.icon)}" alt="">` : `<span class="noicon">${esc(g.name[0])}</span>`}<span><b>${esc(g.name)}</b><br><span class="muted">${g.memberCount} members</span></span></a>${g.canRemove ? `<a class="rm" href="/g/${esc(g.id)}/remove" title="Remove Pixel Bot from ${esc(g.name)}">🗑️ Remove</a>` : ''}</div>`).join('')
     : '<p class="empty">You need the Manage Server permission in a server Pixel Bot is in.</p>';
   const add = `<a class="addserver" href="/invite"><span class="noicon">+</span><span><b>Add to a server</b><br><span class="muted">Invite Pixel Bot somewhere new</span></span></a>`;
   return page({ title: 'Your servers', user, body: `<h1>Hi ${esc(user.username)}!</h1>${flash ? flashBox(flash) : ''}<p class="sub">Pick a server to look after.</p><div class="servers">${items}${add}</div>
@@ -461,6 +461,19 @@ ${more(`<label>Repeat</label>${select('repeat', [{ id: 'none', name: 'Just once'
 }
 
 /** Kick Pixel Bot out of this server, with a typed confirmation. */
+/** "Are you sure?" page for removing Pixel Bot from a server (from the 🗑️ button in the server list). */
+function removeConfirm(guild, user, csrf) {
+  return page({
+    title: `Remove from ${guild.name}`,
+    user,
+    body: `<div class="card confirmbox"><h1>🗑️ Remove Pixel Bot?</h1>
+<p class="sub">Pixel Bot will leave <b>${esc(guild.name)}</b> straight away. You can add it back any time with "Add to a server".</p>
+<form method="post" action="/g/${esc(guild.id)}/save/leave">${hidden('csrf', csrf)}${hidden('confirm', guild.name)}
+<p>${toggle('erase', false, 'Also erase its Pixel Bot settings (can\'t be undone)')}</p>
+<div class="row2"><button type="submit" class="danger">Yes, remove Pixel Bot</button> <a class="button secondary" href="/?all=1">Cancel</a></div></form></div>`,
+  });
+}
+
 function removeCard(guild, user, csrf, open, flash) {
   const locked = settings.isHome(guild.id) && !owner.isOwner(guild.client, user.id);
   return fold({
@@ -614,4 +627,4 @@ ${fold({
   return page({ title: panel.name, user, body });
 }
 
-module.exports = { landing, arcadeRooms, sourceList, sourceFile, codeLogin, linkLogin, account, linkMade, serverList, guildPage, panelPage, errorPage, roleOptions, channelOptions };
+module.exports = { landing, arcadeRooms, sourceList, sourceFile, codeLogin, linkLogin, account, linkMade, serverList, removeConfirm, guildPage, panelPage, errorPage, roleOptions, channelOptions };

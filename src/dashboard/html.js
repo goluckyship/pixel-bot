@@ -100,6 +100,8 @@ nav.jump a{font-size:14px;font-weight:700;padding:6px 14px;border:2px solid var(
 nav.jump a:hover{border-color:var(--pink);background:color-mix(in srgb,var(--pink) 14%,var(--card))}
 .servers a{display:flex;align-items:center;gap:14px;padding:14px 16px;border:2px solid var(--line);border-radius:var(--r);margin:0 0 12px;background:var(--card);text-decoration:none;color:var(--text);box-shadow:0 5px 0 -1px var(--line);transition:transform .12s,border-color .15s}
 .servers a:hover{border-color:var(--pink);transform:translateY(-2px)}
+.srow{position:relative}.srow>a.go{padding-right:120px}.srow .rm{position:absolute;right:14px;top:50%;transform:translateY(-58%);display:inline-flex;align-items:center;gap:6px;padding:8px 12px;margin:0;border:2px solid color-mix(in srgb,var(--bad) 45%,var(--line));border-radius:999px;box-shadow:none;background:var(--card);color:var(--bad);font-weight:700;font-size:14px}.srow .rm:hover{background:color-mix(in srgb,var(--bad) 12%,var(--card));transform:translateY(-58%)}
+.confirmbox{text-align:center}.confirmbox .row2{justify-content:center}
 .servers a.addserver{border-style:dashed;box-shadow:none;background:transparent}.servers a.addserver .noicon{background:color-mix(in srgb,var(--brand) 14%,transparent);color:var(--brand);font-size:22px}
 .servers img,.servers .noicon{width:48px;height:48px;border-radius:16px;background:var(--soft);display:grid;place-items:center;font:600 20px var(--head);color:var(--brand)}
 .muted{color:var(--muted)}code{font-size:14px;background:var(--soft);padding:1px 6px;border-radius:6px}
