@@ -122,7 +122,7 @@ function sourceList(user, { files, totalLines }, version, query, hits) {
     title: 'Code',
     user,
     body: `<div class="card"><h1>📜 Pixel Bot's code</h1>
-<p class="sub"><b>${files.length}</b> files · <b>${totalLines.toLocaleString('en-US')}</b> lines${version.hash ? ` · version <b>${esc(version.hash)}</b>` : ''}${updated ? ` · updated ${esc(updated)} (Chicago time)` : ''}</p>
+<p class="sub"><b>${files.length}</b> files · <b>${totalLines.toLocaleString('en-US')}</b> lines${version.number || version.hash ? ` · version <b>${esc(version.number ?? version.hash)}</b>` : ''}${updated ? ` · updated ${esc(updated)} (Chicago time)` : ''}</p>
 <p class="help">This is the exact code running right now, read straight from the bot, so it updates by itself whenever the bot gets an update. Secret settings (.env) and saved data are never shown.</p>
 ${version.changes?.length && !query ? `<details class="more" style="margin:10px 0"><summary>Latest changes</summary><div class="files">${version.changes.map((c) => `<div style="padding:5px 10px"><b>${esc(c.hash)}</b> <span class="muted">${esc(new Date(c.when).toLocaleString('en-US', { timeZone: 'America/Chicago', dateStyle: 'medium', timeStyle: 'short' }))}</span><br>${esc(c.text)}</div>`).join('')}</div></details>` : ''}
 ${searchBox}${body}</div>`,

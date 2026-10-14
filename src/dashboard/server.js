@@ -232,7 +232,7 @@ function createHandler(client, config) {
         const info = {
           online: Boolean(client.isReady?.() ?? client.user), ping: Math.max(0, Math.round(client.ws?.ping ?? 0)), uptime: client.uptime ?? process.uptime() * 1000,
           servers: client.guilds.cache.size, members, games: activity.liveGames?.() ?? 0, memory: Math.round(process.memoryUsage().rss / 1048576),
-          version: v.hash, updated: v.changes?.[0] ? `${v.changes[0].text} (${new Date(v.changes[0].when).toLocaleString('en-US', { timeZone: 'America/Chicago', dateStyle: 'medium', timeStyle: 'short' })})` : null,
+          version: v.number ?? v.hash, updated: v.changes?.[0] ? `${v.changes[0].text} (${new Date(v.changes[0].when).toLocaleString('en-US', { timeZone: 'America/Chicago', dateStyle: 'medium', timeStyle: 'short' })})` : null,
         };
         if (user && owner.isOwner(client, user.id)) info.crashes = require('../lib/crashlog').read();
         return send(res, 200, more.status(user, info));

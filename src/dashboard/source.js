@@ -80,6 +80,16 @@ function commitInfo(hash) {
 }
 
 /** Which version is running (from .git, without running git). */
+/** The easy-to-read version, like "v29" (the first number in package.json's version). */
+function versionNumber() {
+  try {
+    const v = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
+    return `v${String(v).split('.')[0]}`;
+  } catch {
+    return null;
+  }
+}
+
 function version() {
   try {
     const head = fs.readFileSync(path.join(ROOT, '.git', 'HEAD'), 'utf8').trim();
@@ -108,9 +118,9 @@ function version() {
       changes.push(info);
       next = info.parent;
     }
-    return { hash: hash?.slice(0, 7) ?? null, updates, changes };
+    return { hash: hash?.slice(0, 7) ?? null, number: versionNumber(), updates, changes };
   } catch {
-    return { hash: null, updates: [], changes: [] };
+    return { hash: null, number: versionNumber(), updates: [], changes: [] };
   }
 }
 
