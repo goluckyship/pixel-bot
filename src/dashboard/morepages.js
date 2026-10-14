@@ -75,7 +75,8 @@ function status(user, info) {
     head: '<meta http-equiv="refresh" content="30">',
     body: `<div class="card"><h1>📡 Bot status</h1><p class="sub">Updates every 30 seconds.</p>
 <div class="stats">${tiles.map(([n, l]) => `<div><b>${esc(n)}</b><small>${esc(l)}</small></div>`).join('')}</div>
-${info.updated ? `<p class="help">Last update: ${esc(info.updated)}</p>` : ''}</div>`,
+${info.updated ? `<p class="help">Last update: ${esc(info.updated)}</p>` : ''}</div>
+${info.crashes ? `<div class="card"><h2 class="minor">🧾 Starts, stops and errors (only you see this)</h2>${info.crashes.length ? info.crashes.map((c) => `<details class="fold"><summary><b>${esc({ start: '▶️ Started', stopped: '⏹️ Stopped', error: '⚠️ Error', rejection: '⚠️ Error', exit: '💥 Crashed' }[c.kind] ?? c.kind)}</b> <small class="muted">${esc(new Date(c.when).toLocaleString('en-US', { timeZone: 'America/Chicago', dateStyle: 'medium', timeStyle: 'medium' }))}</small></summary><pre class="help" style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(c.text)}</pre></details>`).join('') : '<p class="help">Nothing yet.</p>'}</div>` : ''}`,
   });
 }
 

@@ -234,6 +234,7 @@ function createHandler(client, config) {
           servers: client.guilds.cache.size, members, games: activity.liveGames?.() ?? 0, memory: Math.round(process.memoryUsage().rss / 1048576),
           version: v.hash, updated: v.changes?.[0] ? `${v.changes[0].text} (${new Date(v.changes[0].when).toLocaleString('en-US', { timeZone: 'America/Chicago', dateStyle: 'medium', timeStyle: 'short' })})` : null,
         };
+        if (user && owner.isOwner(client, user.id)) info.crashes = require('../lib/crashlog').read();
         return send(res, 200, more.status(user, info));
       }
 

@@ -28,7 +28,7 @@ require('./lib/consolecommands').listen(client); // "backup-link" etc. typed int
 
 // Keep running if something unexpected goes wrong, but say what it was.
 client.on('error', (error) => console.error('Discord client error:', error));
-process.on('unhandledRejection', (error) => console.error('Unexpected error:', error));
+require('./lib/crashlog').install(); // logs serious errors to data/crashes.json and keeps running
 
 const BAD_TOKEN_HELP =
   'Discord did not accept the token. Go to the Developer Portal → Bot → Reset Token, copy the new token, and start the bot again to paste it in.';
