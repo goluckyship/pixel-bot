@@ -60,9 +60,15 @@ function remove(guildId, name) {
 }
 
 /** Tells Discord about this server's custom commands. */
-async function register(guild) {
+async function register(guild, { onlyIfChanged = false } = {}) {
   const body = list(guild.id).map((c) => ({ name: c.name, description: truncate(c.description || 'A custom command', 100), type: 1 }));
+  // On start-up, skip the call to Discord when nothing changed since last time (less traffic).
+  const hash = require('node:crypto').createHash('sha256').update(JSON.stringify(body)).digest('hex').slice(0, 16);
+  const g = db.guild(guild.id);
+  if (onlyIfChanged && g.customCommandsHash === hash) return body.length;
   await guild.commands.set(body);
+  g.customCommandsHash = hash;
+  db.saveSoon?.();
   return body.length;
 }
 

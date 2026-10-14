@@ -70,9 +70,18 @@ module.exports = {
 
     // Tell Discord which slash commands exist. This runs on every start, so
     // adding or editing a command only takes a restart.
+    // Only sends them when they changed since the last start, to keep traffic to Discord low.
     const commands = client.commands.map((command) => command.data.toJSON());
-    await registerCommands(client, commands);
-    console.log(`Registered ${commands.length} slash commands.`);
+    const hash = require('node:crypto').createHash('sha256').update(JSON.stringify([client.application?.id, commands])).digest('hex').slice(0, 16);
+    db.data.meta ??= {};
+    if (db.data.meta.commandsHash === hash) {
+      console.log(`Slash commands unchanged (${commands.length}), nothing to send.`);
+    } else {
+      await registerCommands(client, commands);
+      db.data.meta.commandsHash = hash;
+      db.save();
+      console.log(`Registered ${commands.length} slash commands.`);
+    }
 
     appearance.applyPresence(client);
     console.log(require('../lib/questions').MODERN
@@ -86,7 +95,7 @@ module.exports = {
     for (const guild of client.guilds.cache.values()) {
       seedWelcome(guild);
       panels.store(guild.id); // turns the old ticket settings into Panel #1 the first time
-      await customCommands.register(guild).catch((error) => console.warn(`Could not register custom commands in ${guild.name}: ${error.message}`));
+      await customCommands.register(guild, { onlyIfChanged: true }).catch((error) => console.warn(`Could not register custom commands in ${guild.name}: ${error.message}`));
       const changed = await syncAllStaff(guild).catch((error) => {
         console.warn(`Could not check Staff roles in ${guild.name}: ${error.message}`);
         return 0;
