@@ -42,6 +42,16 @@ function settingsFromEnv() {
   return { base, secret, port, secure: url.protocol === 'https:', aliases };
 }
 
+/** The bot's application ID, read from its token (works before Discord has connected). */
+function idFromToken(token) {
+  try {
+    const id = Buffer.from(String(token ?? '').split('.')[0], 'base64').toString('utf8');
+    return /^\d{17,20}$/.test(id) ? id : null;
+  } catch {
+    return null;
+  }
+}
+
 /** The address this visitor used (the main one, or one of the aliases), so logins come back to it. */
 function siteFor(req, config) {
   const host = String(req.headers['x-forwarded-host'] ?? req.headers.host ?? '').split(',')[0].trim().toLowerCase();
@@ -123,25 +133,32 @@ function createHandler(client, config) {
     try {
       const site = siteFor(req, config);
       const url = new URL(req.url, site.base);
-      // Still connecting to Discord (for example while Discord is slowing down the host's connection):
-      // show a friendly page that refreshes itself instead of the host's "web server isn't running".
       // Terms and privacy always work, even while Pixel Bot is still connecting to Discord.
       if (req.method === 'GET' && (url.pathname === '/terms' || url.pathname === '/tos')) return send(res, 200, require('./legal').terms());
       if (req.method === 'GET' && url.pathname === '/privacy') return send(res, 200, require('./legal').privacy());
-      if (typeof client.isReady === 'function' && !client.isReady()) {
-        if (url.pathname === '/robots.txt' || url.pathname.startsWith('/activity/api')) { res.writeHead(503, { 'Retry-After': '15' }); return res.end(); }
-        return send(res, 200, more.waking(Math.round(process.uptime()))); // 200: the host replaces 5xx pages with its own "offline" page
-      }
-      // The Pixel Arcade (Discord Activity) has its own pages and login.
-      if (await activity.handle(req, res, url, { clientId: client.application.id, clientSecret: config.secret })) return;
 
       const session = auth.getSession(req);
       const user = session?.user ? { ...session.user, isOwner: owner.isOwner(client, session.user.id) } : null;
+      const appId = client.application?.id ?? idFromToken(client.token ?? process.env.DISCORD_TOKEN);
+
+      // Still connecting to Discord (for example while Discord is slowing down the host's connection).
+      // Pages that don't need Discord (arcade, appearance, help, account, code, status) keep working;
+      // the ones that do show a friendly page that refreshes itself.
+      if (typeof client.isReady === 'function' && !client.isReady()) {
+        const p = url.pathname;
+        const needsDiscord = ['/login', '/callback', '/code', '/start'].includes(p) || p.startsWith('/g/') || (p === '/' && user) || !appId;
+        if (needsDiscord) {
+          if (p.startsWith('/activity/api')) { res.writeHead(503, { 'Retry-After': '15' }); return res.end(); }
+          return send(res, 200, more.waking(Math.round(process.uptime()), user, p === '/login' || p === '/callback' || p === '/code' || p === '/start')); // 200: the host replaces 5xx pages with its own "offline" page
+        }
+      }
+      // The Pixel Arcade (Discord Activity) has its own pages and login.
+      if (await activity.handle(req, res, url, { clientId: appId, clientSecret: config.secret })) return;
 
       if (req.method === 'GET' && url.pathname === '/login') {
         const state = crypto.randomBytes(16).toString('base64url');
         const params = new URLSearchParams({
-          client_id: client.application.id, response_type: 'code', scope: 'identify', prompt: 'none', // skip Discord's "Authorize" screen after the first time
+          client_id: appId, response_type: 'code', scope: 'identify', prompt: 'none', // skip Discord's "Authorize" screen after the first time
           redirect_uri: `${site.base}/callback`, state,
         });
         return redirect(res, `https://discord.com/oauth2/authorize?${params}`, {
@@ -157,7 +174,7 @@ function createHandler(client, config) {
           const e = pages.errorPage(null, 'That login link expired or was already used. Please try again.');
           return send(res, e.status, e.html);
         }
-        const profile = await auth.fetchDiscordUser({ code, clientId: client.application.id, clientSecret: config.secret, redirectUri: `${site.base}/callback` });
+        const profile = await auth.fetchDiscordUser({ code, clientId: appId, clientSecret: config.secret, redirectUri: `${site.base}/callback` });
         return redirect(res, '/', {
           'Set-Cookie': [
             auth.cookie('pb_session', auth.createSession(profile), { maxAge: auth.SESSION_DAYS * 86400, secure: site.secure }),
@@ -271,7 +288,7 @@ function createHandler(client, config) {
         const code = joinCode(url.searchParams.get('room'));
         if (user) return redirect(res, `/arcade/play?room=${code}`);
         if (!guest) return redirect(res, `/play?room=${code}`);
-        return activity.webPage(res, client.application.id, { id: guest.id, username: `${guest.name} (guest)` }, code, { guest: true });
+        return activity.webPage(res, appId, { id: guest.id, username: `${guest.name} (guest)` }, code, { guest: true });
       }
       // Share links: pixelbot.wisp.uno/join/CODE works for everyone.
       const joinMatch = /^\/join\/([A-Za-z0-9]{1,8})$/.exec(url.pathname);
@@ -288,7 +305,7 @@ function createHandler(client, config) {
       if (req.method === 'GET' && url.pathname === '/arcade/play') {
         const code = activity.cleanCode(url.searchParams.get('room')) || 'MAIN';
         if (code !== url.searchParams.get('room')) return redirect(res, `/arcade/play?room=${code}`);
-        return activity.webPage(res, client.application.id, user, code);
+        return activity.webPage(res, appId, user, code);
       }
 
       // Your account: make or cancel one-time backup login links.

@@ -115,13 +115,16 @@ ${error ? `<div class="flash bad">${esc(error)}</div>` : ''}${who}</div>`,
 }
 
 /** Shown while Pixel Bot is still connecting to Discord. Refreshes itself. */
-function waking(seconds) {
+function waking(seconds, user = null, login = false) {
   return page({
     title: 'Waking up',
-    head: '<meta http-equiv="refresh" content="15">',
+    user,
+    head: '<meta http-equiv="refresh" content="20">',
     body: `<div class="hero">${pixelBot(110, 'beat')}<h1>Pixel Bot is waking up…</h1>
-<p class="sub">It's connecting to Discord. This page refreshes by itself every 15 seconds.</p>
-<p class="help">Started ${seconds < 90 ? `${seconds} seconds` : `${Math.round(seconds / 60)} minutes`} ago. If this takes more than a few minutes, Discord is probably slowing down the hosting company's connection for a while. It fixes itself; nothing on your end needs changing.</p></div>`,
+<p class="sub">${login ? 'Logging in with Discord and your server settings need Pixel Bot connected to Discord.' : 'Your servers need Pixel Bot connected to Discord.'} This page refreshes by itself.</p>
+${login ? '<p class="help">Already have a backup login link? It still works now.</p>' : ''}
+<div class="herobtns"><a class="button" href="/play">🎮 Play the arcade</a>${user ? '<a class="button secondary" href="/me/look">🎨 Appearance</a><a class="button secondary" href="/account">🔑 Login and devices</a>' : ''}<a class="button secondary" href="/help">❓ Help</a></div>
+<p class="help">Started ${seconds < 90 ? `${seconds} seconds` : `${Math.round(seconds / 60)} minutes`} ago. Discord is slowing down the hosting company's shared connection for a while. It fixes itself, and nothing on your end needs changing. Everything else on this site works in the meantime.</p></div>`,
   });
 }
 

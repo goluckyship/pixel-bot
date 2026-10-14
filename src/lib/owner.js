@@ -19,7 +19,14 @@ function settings() {
 function ownerId(client) {
   if (process.env.OWNER_ID) return String(process.env.OWNER_ID).trim();
   const owner = client?.application?.owner;
-  return owner?.ownerId ?? owner?.owner?.id ?? owner?.id ?? null; // a team's owner, or the user
+  const id = owner?.ownerId ?? owner?.owner?.id ?? owner?.id ?? null; // a team's owner, or the user
+  // Remember it, so the owner is still recognised while Discord is unreachable.
+  const o = settings();
+  if (id && o.knownOwnerId !== id) {
+    o.knownOwnerId = id;
+    db.saveSoon?.();
+  }
+  return id ?? o.knownOwnerId ?? null;
 }
 
 const isOwner = (client, userId) => Boolean(userId) && ownerId(client) === String(userId);
