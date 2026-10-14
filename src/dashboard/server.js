@@ -376,7 +376,9 @@ function createHandler(client, config) {
           }
         }
         if (guilds.length === 1 && !url.searchParams.has('all')) return redirect(res, `/g/${guilds[0].id}`);
-        return send(res, 200, pages.serverList(user, guilds));
+        const left = url.searchParams.get('left');
+        if (left) flashes.delete(session.csrf);
+        return send(res, 200, pages.serverList(user, guilds, left ? { ok: true, text: `🚪 Pixel Bot left ${left}. Add it back any time with "Add to a server".` } : null));
       }
 
       // /g/<server>                      settings page

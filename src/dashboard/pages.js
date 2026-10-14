@@ -161,12 +161,12 @@ function arcadeRooms(user, live) {
   });
 }
 
-function serverList(user, guilds) {
+function serverList(user, guilds, flash = null) {
   const items = guilds.length
     ? guilds.map((g) => `<a href="/g/${esc(g.id)}">${g.icon ? `<img src="${esc(g.icon)}" alt="">` : `<span class="noicon">${esc(g.name[0])}</span>`}<span><b>${esc(g.name)}</b><br><span class="muted">${g.memberCount} members</span></span></a>`).join('')
     : '<p class="empty">You need the Manage Server permission in a server Pixel Bot is in.</p>';
   const add = `<a class="addserver" href="/invite"><span class="noicon">+</span><span><b>Add to a server</b><br><span class="muted">Invite Pixel Bot somewhere new</span></span></a>`;
-  return page({ title: 'Your servers', user, body: `<h1>Hi ${esc(user.username)}!</h1><p class="sub">Pick a server to look after.</p><div class="servers">${items}${add}</div>
+  return page({ title: 'Your servers', user, body: `<h1>Hi ${esc(user.username)}!</h1>${flash ? flashBox(flash) : ''}<p class="sub">Pick a server to look after.</p><div class="servers">${items}${add}</div>
 <p class="help">After adding Pixel Bot, come back here and refresh: the new server shows up in this list. It starts with everything switched off, so nothing happens there until you turn things on.</p>` });
 }
 
@@ -436,7 +436,10 @@ ${fold({
     body: form(guild.id, 'tickets', csrf, `<div class="grid2"><div><label>Category for new tickets</label>${select('category', categories, findCategory(guild, s.tickets.category)?.id)}</div>
 <div><label>Transcripts go to</label>${select('transcriptChannel', texts, findChannel(guild, s.tickets.transcriptChannel)?.id)}</div></div>
 <label>Staff who see tickets</label>${checks('staffRoles', roles, roleIds(guild, s.tickets.staffRoles))}`),
-  })}`;
+  })}
+
+<h2 class="group">Danger zone</h2>
+${removeCard(guild, user, csrf, opened === 'leave', flashFor('leave'))}`;
 
   function scheduledCard() {
     return fold({
@@ -455,6 +458,22 @@ ${more(`<label>Repeat</label>${select('repeat', [{ id: 'none', name: 'Just once'
   }
 
   return page({ title: guild.name, user, body });
+}
+
+/** Kick Pixel Bot out of this server, with a typed confirmation. */
+function removeCard(guild, user, csrf, open, flash) {
+  const locked = settings.isHome(guild.id) && !owner.isOwner(guild.client, user.id);
+  return fold({
+    id: 'leave', emoji: '🚪', title: 'Remove Pixel Bot from this server', open, flash,
+    status: off('Kicks the bot'),
+    help: 'Pixel Bot leaves this server straight away. You can add it back any time with "Add to a server".',
+    body: locked
+      ? '<p class="muted">Only the bot owner can remove Pixel Bot from its home server.</p>'
+      : `<form method="post" action="/g/${esc(guild.id)}/save/leave">${hidden('csrf', csrf)}
+<label>Type the server name to confirm: <b>${esc(guild.name)}</b></label>${input('confirm', '', { placeholder: guild.name })}
+${toggle('erase', false, 'Also erase all its Pixel Bot settings (can\'t be undone)')}
+<button type="submit" class="danger">🚪 Remove Pixel Bot</button></form>`,
+  });
 }
 
 function appearanceCard(guild, user, csrf, open, flash) {

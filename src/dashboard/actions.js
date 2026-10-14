@@ -287,6 +287,28 @@ async function apply(guild, member, sectionId, form) {
       const id = Number(text(form.id, 10));
       return schedules.remove(guild.id, id) ? { ok: true, text: `Scheduled message #${id} deleted.` } : { ok: false, text: 'That scheduled message no longer exists.' };
     }
+    case 'leave': {
+      // Removes (kicks) Pixel Bot from this server. Needs the server's exact name typed in.
+      const isBotOwner = require('../lib/owner').isOwner(guild.client, member.id);
+      if (settings.isHome(guild.id) && !isBotOwner) return { ok: false, text: 'Only the bot owner can remove Pixel Bot from its home server.' };
+      const isServerOwner = guild.ownerId === member.id;
+      const canManage = member.permissions?.has?.(PermissionFlagsBits.ManageGuild) || member.permissions?.has?.(PermissionFlagsBits.Administrator);
+      if (!isBotOwner && !isServerOwner && !canManage) return { ok: false, text: 'You need the Manage Server permission to remove Pixel Bot.' };
+      if (text(form.confirm, 200).toLowerCase() !== guild.name.trim().toLowerCase()) {
+        return { ok: false, text: `Type the server name exactly ("${guild.name}") to remove Pixel Bot.` };
+      }
+      const erase = Boolean(form.erase);
+      try {
+        await guild.leave();
+      } catch (error) {
+        return { ok: false, text: `Discord didn't let me leave: ${error.message}` };
+      }
+      if (erase) {
+        delete db.data.guilds[guild.id];
+        db.save();
+      }
+      return { ok: true, text: `Pixel Bot left ${guild.name}${erase ? ' and erased its settings' : ''}.`, redirect: `/?all=1&left=${encodeURIComponent(guild.name.slice(0, 100))}` };
+    }
     default:
       return { ok: false, text: 'Unknown setting.' };
   }
