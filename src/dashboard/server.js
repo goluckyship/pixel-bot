@@ -125,6 +125,9 @@ function createHandler(client, config) {
       const url = new URL(req.url, site.base);
       // Still connecting to Discord (for example while Discord is slowing down the host's connection):
       // show a friendly page that refreshes itself instead of the host's "web server isn't running".
+      // Terms and privacy always work, even while Pixel Bot is still connecting to Discord.
+      if (req.method === 'GET' && (url.pathname === '/terms' || url.pathname === '/tos')) return send(res, 200, require('./legal').terms());
+      if (req.method === 'GET' && url.pathname === '/privacy') return send(res, 200, require('./legal').privacy());
       if (typeof client.isReady === 'function' && !client.isReady()) {
         if (url.pathname === '/robots.txt' || url.pathname.startsWith('/activity/api')) { res.writeHead(503, { 'Retry-After': '15' }); return res.end(); }
         return send(res, 200, more.waking(Math.round(process.uptime()))); // 200: the host replaces 5xx pages with its own "offline" page

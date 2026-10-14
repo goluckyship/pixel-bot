@@ -18,7 +18,7 @@ function home() {
 <div class="card"><b>⭐ Levels</b><p>Voice-time levels, role rewards and leaderboards.</p></div>
 <div class="card"><b>🎮 Pixel Arcade</b><p>30 games in Discord or any browser. Play friends or Pixel Bot.</p></div>
 </div>
-<p class="foot"><a class="linky" href="/help">How it works</a> · <a class="linky" href="/status">Bot status</a></p>`,
+<p class="foot"><a class="linky" href="/help">How it works</a> · <a class="linky" href="/status">Bot status</a> · <a class="linky" href="/terms">Terms</a> · <a class="linky" href="/privacy">Privacy</a></p>`,
   });
 }
 
