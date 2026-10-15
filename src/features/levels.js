@@ -212,7 +212,12 @@ async function updateBoard(guild, cfg) {
   let result;
   if (existing) result = await existing.edit(body);
   else st.boardMessage = (result = await channel.send(body)).id;
-  if (!lastBoard.has(guild.id)) console.log(`Voice leaderboard in ${guild.name}: ${existing ? 'updated' : 'posted a new'} board in #${channel.name} (message ${result?.id}, footer now: "${result?.embeds?.[0]?.footer?.text ?? '?'}", edited ${result?.editedAt?.toISOString?.() ?? '?'})`);
+  if (!lastBoard.has(guild.id)) {
+    const me = guild.members.me;
+    const perms = me && channel.permissionsFor(me);
+    const missing = ['ViewChannel', 'SendMessages', 'EmbedLinks', 'ReadMessageHistory'].filter((p) => perms && !perms.has(p));
+    console.log(`Voice leaderboard in ${guild.name}: ${existing ? 'updated' : 'posted a new'} board in #${channel.name} (footer now: "${result?.embeds?.[0]?.footer?.text ?? '?'}", edited ${result?.editedAt?.toISOString?.() ?? '?'}, missing permissions: ${missing.join(', ') || 'none'})`);
+  }
   lastBoard.set(guild.id, text);
   db.saveSoon();
 }
