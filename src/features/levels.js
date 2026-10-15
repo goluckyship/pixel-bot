@@ -181,9 +181,10 @@ async function updateBoard(guild, cfg) {
   if (st.boardMessage && lastBoard.get(guild.id) === text) return; // nothing changed
   const body = { embeds: [card], allowedMentions: { parse: [] } };
   const existing = st.boardMessage ? await channel.messages.fetch(st.boardMessage).catch(() => null) : null;
-  if (existing) await existing.edit(body);
-  else st.boardMessage = (await channel.send(body)).id;
-  if (!lastBoard.has(guild.id)) console.log(`Voice leaderboard in ${guild.name}: ${existing ? 'updated' : 'posted a new'} board in #${channel.name}`);
+  let result;
+  if (existing) result = await existing.edit(body);
+  else st.boardMessage = (result = await channel.send(body)).id;
+  if (!lastBoard.has(guild.id)) console.log(`Voice leaderboard in ${guild.name}: ${existing ? 'updated' : 'posted a new'} board in #${channel.name} (message ${result?.id}, footer now: "${result?.embeds?.[0]?.footer?.text ?? '?'}", edited ${result?.editedAt?.toISOString?.() ?? '?'})`);
   lastBoard.set(guild.id, text);
   db.saveSoon();
 }
