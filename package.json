@@ -1,6 +1,6 @@
 {
   "name": "pixel-bot",
-  "version": "45.0.0",
+  "version": "46.0.0",
   "description": "Pixel Bot - a Discord bot with games, moderation and utility commands",
   "private": true,
   "main": "src/index.js",

@@ -159,15 +159,43 @@ async function tick(client) {
   }
 }
 
+/** Why someone in voice isn't earning time right now. */
+function notCountingReason(member, cfg) {
+  const voice = member.voice; const channel = voice?.channel;
+  const afk = features.config(member.guild.id, 'afk');
+  if (channel && (channel.id === member.guild.afkChannelId || (afk.enabled && channel.id === afk.room))) return '💤 AFK';
+  if (cfg.skipDeafened !== false && (voice.selfDeaf || voice.serverDeaf)) return '🔇 deafened';
+  if (cfg.skipMuted && (voice.selfMute || voice.serverMute)) return '🔇 muted';
+  if (cfg.needCompany !== false) {
+    const others = channel.members.filter((m) => !m.user.bot && m.id !== member.id && !m.voice.selfDeaf && !m.voice.serverDeaf);
+    if (others.size === 0) return '👤 alone (needs someone else)';
+  }
+  return '⏸️ not counting here';
+}
+
 const boardBusy = new Set();
+const editCounts = new Map();
 const lastBoard = new Map(); // guild -> last text sent, so unchanged boards aren't re-sent
 
 function boardCard(guild, cfg) {
   const line = (list, key) => list.slice(0, 10).map(([id, u], i) => `${['🥇', '🥈', '🥉'][i] ?? `**${i + 1}.**`} <@${id}> · ${clock(u[key])} · lvl ${levelOf(u.xp).level}`).join('\n') || 'Nobody yet. Hop in voice!';
-  return embed(hexColor(cfg.color) ?? undefined)
+  // Who's in voice right now, and whether their time is counting (so the board visibly reacts straight away).
+  const now = [];
+  for (const channel of guild.channels.cache.values()) {
+    if (!channel.isVoiceBased?.()) continue;
+    for (const member of channel.members.values()) {
+      if (member.user.bot) continue;
+      const ok = counts(member, cfg);
+      const why = ok ? '🟢 counting' : notCountingReason(member, cfg);
+      now.push(`<@${member.id}> · ${why}`);
+    }
+  }
+  const e = embed(hexColor(cfg.color) ?? undefined)
     .setTitle('🎧 Voice hours')
     .addFields({ name: 'This week', value: truncate(line(ranked(guild.id, 'week'), 'week'), 1024), inline: true }, { name: 'All time', value: truncate(line(ranked(guild.id, 'voice'), 'voice'), 1024), inline: true })
+    .addFields({ name: '🎙️ In voice now', value: truncate(now.join('\n') || 'Nobody right now', 1024) })
     .setFooter({ text: 'Live · updates every second · AFK, deafened and alone time doesn\'t count' });
+  return e;
 }
 
 /** Keeps one leaderboard message up to date in the chosen channel. */
