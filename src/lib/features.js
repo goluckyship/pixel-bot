@@ -90,6 +90,22 @@ function startTicks(client) {
   const timer = setInterval(run, 30_000);
   timer.unref?.();
   setTimeout(run, 5_000).unref?.();
+  // Features that need to be live (like the voice leaderboard) tick every second instead.
+  let busy = false;
+  const fast = setInterval(async () => {
+    if (busy) return;
+    busy = true;
+    for (const feature of all()) {
+      if (!feature.fastTick) continue;
+      try {
+        await feature.fastTick(client);
+      } catch (error) {
+        console.error(`Error in ${feature.title}:`, error.message);
+      }
+    }
+    busy = false;
+  }, 1000);
+  fast.unref?.();
   return timer;
 }
 

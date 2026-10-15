@@ -40,6 +40,14 @@ function hours(seconds) {
   return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`;
 }
 
+/** "3h 25m 07s" (live, down to the second) */
+function clock(seconds) {
+  const t = Math.floor(seconds ?? 0);
+  const h = Math.floor(t / 3600); const m = Math.floor((t % 3600) / 60); const sec = t % 60;
+  const pad = (n) => String(n).padStart(2, '0');
+  return h ? `${h}h ${pad(m)}m ${pad(sec)}s` : m ? `${m}m ${pad(sec)}s` : `${sec}s`;
+}
+
 function ranked(guildId, by = 'xp') {
   const list = Object.entries(store(guildId).users).map(([id]) => [id, userOf(guildId, id)]);
   return list.filter(([, u]) => (by === 'week' ? u.week : by === 'voice' ? u.voice : u.xp) > 0)
@@ -114,7 +122,7 @@ function counts(member, cfg) {
   return true;
 }
 
-/** Every 30 seconds: add voice time and XP for everyone who's really hanging out in voice. */
+/** Every second: add voice time and XP for everyone who's really hanging out in voice, and keep the board live. */
 async function tick(client) {
   for (const guild of client.guilds.cache.values()) {
     if (!features.isOn(guild.id, 'levels')) continue;
@@ -122,7 +130,7 @@ async function tick(client) {
     const st = store(guild.id);
     const now = Date.now();
     // Count the time since the last check (capped, so a restart doesn't hand out free hours).
-    const seconds = st.lastTick ? Math.min(90, Math.max(0, (now - st.lastTick) / 1000)) : 30;
+    const seconds = st.lastTick ? Math.min(90, Math.max(0, (now - st.lastTick) / 1000)) : 1;
     st.lastTick = now;
     const perMinute = Number(cfg.xpPerMinute ?? 10) * (Number(cfg.multiplier) || 1);
     for (const channel of guild.channels.cache.values()) {
@@ -136,17 +144,23 @@ async function tick(client) {
       }
     }
     db.saveSoon();
-    if (cfg.board && now - (st.boardAt ?? 0) >= 5 * 60_000) await updateBoard(guild, cfg).catch((e) => console.warn(`Voice leaderboard: ${e.message}`));
+    // The board refreshes every second while it changes (one edit at a time, so Discord never gets flooded).
+    if (cfg.board && !boardBusy.has(guild.id) && now - (st.boardAt ?? 0) >= 1000) {
+      boardBusy.add(guild.id);
+      updateBoard(guild, cfg).catch((e) => console.warn(`Voice leaderboard: ${e.message}`)).finally(() => boardBusy.delete(guild.id));
+    }
   }
 }
 
+const boardBusy = new Set();
+const lastBoard = new Map(); // guild -> last text sent, so unchanged boards aren't re-sent
+
 function boardCard(guild, cfg) {
-  const line = (list, key) => list.slice(0, 10).map(([id, u], i) => `${['🥇', '🥈', '🥉'][i] ?? `**${i + 1}.**`} <@${id}> · ${hours(u[key])} · lvl ${levelOf(u.xp).level}`).join('\n') || 'Nobody yet. Hop in voice!';
+  const line = (list, key) => list.slice(0, 10).map(([id, u], i) => `${['🥇', '🥈', '🥉'][i] ?? `**${i + 1}.**`} <@${id}> · ${clock(u[key])} · lvl ${levelOf(u.xp).level}`).join('\n') || 'Nobody yet. Hop in voice!';
   return embed(hexColor(cfg.color) ?? undefined)
     .setTitle('🎧 Voice hours')
     .addFields({ name: 'This week', value: truncate(line(ranked(guild.id, 'week'), 'week'), 1024), inline: true }, { name: 'All time', value: truncate(line(ranked(guild.id, 'voice'), 'voice'), 1024), inline: true })
-    .setFooter({ text: 'Updates every few minutes · AFK, deafened and alone time doesn\'t count' })
-    .setTimestamp();
+    .setFooter({ text: 'Live · updates every second · AFK, deafened and alone time doesn\'t count' });
 }
 
 /** Keeps one leaderboard message up to date in the chosen channel. */
@@ -155,10 +169,14 @@ async function updateBoard(guild, cfg) {
   st.boardAt = Date.now();
   const channel = guild.channels.cache.get(cfg.board);
   if (!channel) return;
-  const body = { embeds: [boardCard(guild, cfg)], allowedMentions: { parse: [] } };
+  const card = boardCard(guild, cfg);
+  const text = JSON.stringify(card.toJSON ? card.toJSON() : card);
+  if (st.boardMessage && lastBoard.get(guild.id) === text) return; // nothing changed
+  const body = { embeds: [card], allowedMentions: { parse: [] } };
   const existing = st.boardMessage ? await channel.messages.fetch(st.boardMessage).catch(() => null) : null;
   if (existing) await existing.edit(body);
   else st.boardMessage = (await channel.send(body)).id;
+  lastBoard.set(guild.id, text);
   db.saveSoon();
 }
 
@@ -277,6 +295,6 @@ module.exports = {
   },
   commands: [rank, leaderboard, xp],
   events: [{ name: 'messageCreate', execute: onMessage }],
-  tick,
+  fastTick: tick,
   levelOf, xpFor, addXp, ranked, store, counts, hours, userOf, weekKey,
 };
