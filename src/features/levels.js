@@ -174,6 +174,7 @@ function notCountingReason(member, cfg) {
 }
 
 const boardBusy = new Set();
+const permFixTried = new Set();
 const editCounts = new Map();
 const lastBoard = new Map(); // guild -> last text sent, so unchanged boards aren't re-sent
 
@@ -204,6 +205,20 @@ async function updateBoard(guild, cfg) {
   st.boardAt = Date.now();
   const channel = guild.channels.cache.get(cfg.board);
   if (!channel) return;
+  // A read-only board channel blocks Pixel Bot's edits too: give itself the few permissions it needs there.
+  const me = guild.members.me;
+  const perms = me && channel.permissionsFor(me);
+  const need = ['ViewChannel', 'SendMessages', 'EmbedLinks', 'ReadMessageHistory'];
+  const missing = need.filter((p) => perms && !perms.has(p));
+  if (missing.length && !permFixTried.has(guild.id)) {
+    permFixTried.add(guild.id);
+    try {
+      await channel.permissionOverwrites.edit(me.id, Object.fromEntries(need.map((p) => [p, true])), { reason: 'Pixel Bot needs to update the voice leaderboard here' });
+      console.log(`Voice leaderboard in ${guild.name}: gave Pixel Bot ${missing.join(', ')} in #${channel.name}`);
+    } catch (error) {
+      console.warn(`Voice leaderboard in ${guild.name}: can't post in #${channel.name} (missing ${missing.join(', ')}) and couldn't fix it: ${error.message}`);
+    }
+  }
   const card = boardCard(guild, cfg);
   const text = JSON.stringify(card.toJSON ? card.toJSON() : card);
   if (st.boardMessage && lastBoard.get(guild.id) === text) return; // nothing changed
