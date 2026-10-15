@@ -123,8 +123,15 @@ function counts(member, cfg) {
 }
 
 /** Every second: add voice time and XP for everyone who's really hanging out in voice, and keep the board live. */
+const reported = new Set();
 async function tick(client) {
   for (const guild of client.guilds.cache.values()) {
+    if (!reported.has(guild.id)) {
+      reported.add(guild.id);
+      const c = features.config(guild.id, 'levels');
+      const ch = c.board && guild.channels.cache.get(c.board);
+      console.log(`Voice leaderboard in ${guild.name}: levels ${features.isOn(guild.id, 'levels') ? 'on' : 'OFF'}, board channel ${ch ? `#${ch.name}` : c.board ? 'missing' : 'not set'}, message ${store(guild.id).boardMessage || 'none yet'}`);
+    }
     if (!features.isOn(guild.id, 'levels')) continue;
     const cfg = features.config(guild.id, 'levels');
     const st = store(guild.id);
@@ -176,6 +183,7 @@ async function updateBoard(guild, cfg) {
   const existing = st.boardMessage ? await channel.messages.fetch(st.boardMessage).catch(() => null) : null;
   if (existing) await existing.edit(body);
   else st.boardMessage = (await channel.send(body)).id;
+  if (!lastBoard.has(guild.id)) console.log(`Voice leaderboard in ${guild.name}: ${existing ? 'updated' : 'posted a new'} board in #${channel.name}`);
   lastBoard.set(guild.id, text);
   db.saveSoon();
 }
