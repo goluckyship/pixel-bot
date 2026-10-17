@@ -101,6 +101,15 @@ module.exports = {
         return 0;
       });
       if (changed) console.log(`Updated the Staff role for ${changed} member(s) in ${guild.name}.`);
+      try {
+        const { problem, where } = require('../lib/permcheck');
+        const g = db.guild(guild.id);
+        const wch = g.welcome?.channelId ? guild.channels.cache.get(g.welcome.channelId) : null;
+        const w = !g.welcome ? 'OFF' : !wch ? `channel ${g.welcome.channelId} NOT FOUND` : problem(wch) ? `${where(wch)}: ${problem(wch)}` : `OK in #${wch.name}`;
+        console.log(`[check] ${guild.name}: welcome ${w}`);
+      } catch (error) {
+        console.warn(`[check] ${guild.name}: ${error.message}`);
+      }
     }
 
     const invite = require('../lib/invite').inviteLink(client);

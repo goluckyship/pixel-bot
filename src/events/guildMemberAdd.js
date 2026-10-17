@@ -49,7 +49,10 @@ module.exports = {
     const welcome = g.welcome;
     if (!welcome) return;
     const channel = member.guild.channels.cache.get(welcome.channelId);
-    if (!channel?.isTextBased()) return;
-    await channel.send(welcomeMessage(welcome, member));
+    const { problem, where } = require('../lib/permcheck');
+    if (!channel?.isTextBased()) return console.warn(`Welcome in ${member.guild.name}: channel ${welcome.channelId} is missing or not a text channel. Pick a new one in the dashboard.`);
+    await channel.send(welcomeMessage(welcome, member)).catch((e) => {
+      console.warn(`Welcome FAILED in ${where(channel)}: ${e.message}. ${problem(channel) || 'Permissions look fine, so Discord refused for another reason.'}`);
+    });
   },
 };

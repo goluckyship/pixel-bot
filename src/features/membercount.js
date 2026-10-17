@@ -8,13 +8,13 @@ async function tick(client) {
     if (!features.isOn(guild.id, 'membercount')) continue;
     const cfg = features.config(guild.id, 'membercount');
     const channel = guild.channels.cache.get(cfg.channel);
-    if (!channel) continue;
+    if (!channel) { if (!lastSet.has('warn' + guild.id)) { lastSet.set('warn' + guild.id, 1); console.warn(`Member count in ${guild.name}: channel ${cfg.channel} not found.`); } continue; }
     if (Date.now() - (lastSet.get(guild.id) ?? 0) < 6 * 60_000) continue;
     const humans = cfg.countBots ? guild.memberCount : guild.members.cache.filter((m) => !m.user.bot).size || guild.memberCount;
     const name = (cfg.template || '👥 Members: {count}').replaceAll('{count}', humans.toLocaleString('en-US')).slice(0, 100);
     if (channel.name === name) continue;
     lastSet.set(guild.id, Date.now());
-    await channel.setName(name, 'Member count').catch((e) => console.warn(`Member count channel: ${e.message}`));
+    await channel.setName(name, 'Member count').catch((e) => console.warn(`Member count FAILED in ${require('../lib/permcheck').where(channel)}: ${e.message}. ${require('../lib/permcheck').problem(channel, ['ViewChannel', 'ManageChannels', 'Connect']) || ''}`));
   }
 }
 
