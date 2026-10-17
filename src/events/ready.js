@@ -115,6 +115,9 @@ module.exports = {
         else {
           const hits = [...logs.entries.values()].filter((e) => myRoles.has(e.targetId) && e.changes.some((c) => c.key === 'permissions')).slice(0, 8);
           if (!hits.length) console.log(`[check] ${guild.name}: no recent permission changes to Pixel Bot's role in the audit log`);
+          const all = await guild.fetchAuditLogs({ limit: 100 }).catch(() => null);
+          const mine = all ? [...all.entries.values()].filter((e) => e.targetId === client.user.id || myRoles.has(e.targetId) || /Integration|Bot/.test(String(AuditLogEvent[e.action]))).slice(0, 10) : [];
+          for (const e of mine) console.log(`[check] ${guild.name}: ${e.createdAt.toISOString()} ${AuditLogEvent[e.action] ?? e.action} by ${e.executor?.tag ?? e.executorId} ${e.changes.map((c) => c.key).join(',')}`);
           for (const e of hits) {
             const c = e.changes.find((x) => x.key === 'permissions');
             const admin = (v) => (BigInt(v ?? 0) & 8n ? 'admin ON' : 'admin off');
