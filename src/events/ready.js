@@ -107,6 +107,20 @@ module.exports = {
         const wch = g.welcome?.channelId ? guild.channels.cache.get(g.welcome.channelId) : null;
         const w = !g.welcome ? 'OFF' : !wch ? `channel ${g.welcome.channelId} NOT FOUND` : problem(wch) ? `${where(wch)}: ${problem(wch)}` : `OK in #${wch.name}`;
         console.log(`[check] ${guild.name}: welcome ${w}`);
+        // Who has been changing Pixel Bot's own role? (read-only, needs View Audit Log)
+        const myRoles = new Set(guild.members.me.roles.cache.keys());
+        const { AuditLogEvent } = require('discord.js');
+        const logs = await guild.fetchAuditLogs({ type: AuditLogEvent.RoleUpdate, limit: 50 }).catch((e) => ({ error: e.message }));
+        if (logs.error) console.log(`[check] ${guild.name}: can't read the audit log (${logs.error})`);
+        else {
+          const hits = [...logs.entries.values()].filter((e) => myRoles.has(e.targetId) && e.changes.some((c) => c.key === 'permissions')).slice(0, 8);
+          if (!hits.length) console.log(`[check] ${guild.name}: no recent permission changes to Pixel Bot's role in the audit log`);
+          for (const e of hits) {
+            const c = e.changes.find((x) => x.key === 'permissions');
+            const admin = (v) => (BigInt(v ?? 0) & 8n ? 'admin ON' : 'admin off');
+            console.log(`[check] ${guild.name}: ${e.createdAt.toISOString()} ${e.executor?.tag ?? e.executorId}${e.executor?.bot ? ' (BOT)' : ''} changed Pixel Bot's role: ${admin(c.old)} -> ${admin(c.new)}`);
+          }
+        }
       } catch (error) {
         console.warn(`[check] ${guild.name}: ${error.message}`);
       }
